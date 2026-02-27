@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MANDROID.IA — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── Reset & Base ───────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --neon-green:  #00ff41;
+      --neon-cyan:   #00e5ff;
+      --neon-purple: #bf00ff;
+      --neon-blue:   #0066ff;
+      --dark-bg:     #000a00;
+      --card-bg:     rgba(0, 15, 0, 0.85);
+      --border-glow: rgba(0, 255, 65, 0.4);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--dark-bg);
+      overflow: hidden;
+      font-family: 'Rajdhani', sans-serif;
+    }
+
+    /* ── Canvas Matrix ──────────────────────────── */
+    #matrix-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      opacity: 0.55;
+    }
+
+    /* ── Overlay escuro sobre o canvas ─────────── */
+    .overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: radial-gradient(ellipse at center,
+        rgba(0,5,0,0.3) 0%,
+        rgba(0,0,0,0.7) 100%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ── Container Central ──────────────────────── */
+    .login-wrapper {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* ── Logo SVG ───────────────────────────────── */
+    .logo-container {
+      margin-bottom: 10px;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .logo-svg {
+      width: 120px;
+      height: 120px;
+      filter: drop-shadow(0 0 20px var(--neon-green)) drop-shadow(0 0 40px var(--neon-green));
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-12px); }
+    }
+
+    /* ── Título MANDROID.IA ─────────────────────── */
+    .brand-title {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(2rem, 6vw, 3.8rem);
+      font-weight: 900;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #00ff41 0%, #00e5ff 50%, #bf00ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-align: center;
+      animation: titleGlow 2.5s ease-in-out infinite alternate;
+      margin-bottom: 4px;
+    }
+
+    @keyframes titleGlow {
+      from { filter: drop-shadow(0 0 8px #00ff41); }
+      to   { filter: drop-shadow(0 0 25px #00e5ff) drop-shadow(0 0 50px #00ff41); }
+    }
+
+    .brand-tagline {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--neon-cyan);
+      letter-spacing: 4px;
+      text-align: center;
+      margin-bottom: 40px;
+      opacity: 0.8;
+      animation: blink 3s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.8; }
+      50%       { opacity: 0.4; }
+    }
+
+    /* ── Card de Login ──────────────────────────── */
+    .login-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-glow);
+      border-radius: 16px;
+      padding: 48px 52px;
+      width: 100%;
+      max-width: 460px;
+      backdrop-filter: blur(20px);
+      box-shadow:
+        0 0 30px rgba(0,255,65,0.15),
+        0 0 60px rgba(0,255,65,0.05),
+        inset 0 1px 0 rgba(0,255,65,0.2);
+      position: relative;
+      overflow: hidden;
+      animation: cardAppear 0.8s ease-out;
+    }
+
+    @keyframes cardAppear {
+      from { opacity: 0; transform: scale(0.9) translateY(30px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    /* Linha decorativa superior */
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--neon-green), var(--neon-cyan), var(--neon-green), transparent);
+      animation: scanLine 3s linear infinite;
+    }
+
+    @keyframes scanLine {
+      0%   { left: -100%; right: 200%; }
+      100% { left: 200%; right: -100%; }
+    }
+
+    .card-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .card-header h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.3rem;
+      color: var(--neon-cyan);
+      letter-spacing: 3px;
+      margin-bottom: 8px;
+    }
+
+    .card-header p {
+      font-size: 0.95rem;
+      color: rgba(0, 229, 255, 0.6);
+      letter-spacing: 1px;
+    }
+
+    /* ── Divider ────────────────────────────────── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(0,255,65,0.25);
+    }
+
+    .divider span {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.75rem;
+      color: rgba(0,255,65,0.5);
+      letter-spacing: 2px;
+    }
+
+    /* ── Botão Google ───────────────────────────── */
+    .btn-google {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      width: 100%;
+      padding: 16px 24px;
+      background: transparent;
+      border: 2px solid rgba(0,255,65,0.5);
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-google::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0,255,65,0.15), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .btn-google:hover::before { left: 100%; }
+
+    .btn-google:hover {
+      border-color: var(--neon-green);
+      box-shadow: 0 0 20px rgba(0,255,65,0.4), 0 0 40px rgba(0,255,65,0.2);
+      transform: translateY(-2px);
+      color: var(--neon-green);
+    }
+
+    .btn-google:active { transform: translateY(0); }
+
+    .btn-google svg {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+    }
+
+    /* ── Info extras ────────────────────────────── */
+    .security-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 20px;
+      padding: 12px 16px;
+      background: rgba(0,255,65,0.05);
+      border-left: 3px solid var(--neon-green);
+      border-radius: 0 8px 8px 0;
+    }
+
+    .security-note span {
+      font-size: 0.82rem;
+      color: rgba(0,255,65,0.7);
+      letter-spacing: 0.5px;
+      line-height: 1.4;
+    }
+
+    /* ── Erro de autenticação ───────────────────── */
+    .error-msg {
+      background: rgba(255,50,50,0.1);
+      border: 1px solid rgba(255,50,50,0.4);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #ff6b6b;
+      font-size: 0.9rem;
+      text-align: center;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .error-msg.show { display: block; }
+
+    /* ── Stats decorativos ──────────────────────── */
+    .stats-row {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(0,255,65,0.1);
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.2rem;
+      color: var(--neon-green);
+      font-weight: 700;
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+      color: rgba(0,229,255,0.5);
+      letter-spacing: 1.5px;
+      margin-top: 2px;
+      text-transform: uppercase;
+    }
+
+    /* ── Footer ─────────────────────────────────── */
+    .footer {
+      position: fixed;
+      bottom: 16px;
+      left: 0; right: 0;
+      text-align: center;
+      z-index: 2;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.75rem;
+      color: rgba(0,255,65,0.35);
+      letter-spacing: 2px;
+    }
+
+    /* ── Loader de scan ─────────────────────────── */
+    .scan-bar {
+      position: absolute;
+      bottom: -2px; left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--neon-green), var(--neon-cyan));
+      animation: scanProgress 4s ease-in-out infinite;
+      box-shadow: 0 0 10px var(--neon-green);
+    }
+
+    @keyframes scanProgress {
+      0%   { width: 0%;   opacity: 1; }
+      80%  { width: 100%; opacity: 1; }
+      100% { width: 100%; opacity: 0; }
+    }
+
+    /* ── Partículas de canto ────────────────────── */
+    .corner-decor {
+      position: absolute;
+      width: 20px; height: 20px;
+      border-color: var(--neon-green);
+      border-style: solid;
+      opacity: 0.5;
+    }
+    .corner-tl { top: 12px; left: 12px;  border-width: 2px 0 0 2px; }
+    .corner-tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+    .corner-bl { bottom: 12px; left: 12px;  border-width: 0 0 2px 2px; }
+    .corner-br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+  </style>
+</head>
+<body>
+
+<!-- Matrix Rain Canvas -->
+<canvas id="matrix-canvas"></canvas>
+<div class="overlay"></div>
+
+<!-- Conteúdo Principal -->
+<div class="login-wrapper">
+
+  <!-- Logo SVG Animada -->
+  <div class="logo-container">
+    <svg class="logo-svg" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   style="stop-color:#00ff41;stop-opacity:1"/>
+          <stop offset="50%"  style="stop-color:#00e5ff;stop-opacity:1"/>
+          <stop offset="100%" style="stop-color:#bf00ff;stop-opacity:1"/>
+        </linearGradient>
+      </defs>
+      <!-- Círculo externo -->
+      <circle cx="60" cy="60" r="55" fill="none" stroke="url(#grad1)" stroke-width="2" filter="url(#glow)" opacity="0.8">
+        <animateTransform attributeName="transform" type="rotate" from="0 60 60" to="360 60 60" dur="12s" repeatCount="indefinite"/>
+      </circle>
+      <!-- Círculo interno giratório -->
+      <circle cx="60" cy="60" r="44" fill="none" stroke="#00ff41" stroke-width="1" stroke-dasharray="8 4" opacity="0.5">
+        <animateTransform attributeName="transform" type="rotate" from="360 60 60" to="0 60 60" dur="6s" repeatCount="indefinite"/>
+      </circle>
+      <!-- Corpo do robô -->
+      <rect x="35" y="38" width="50" height="45" rx="8" fill="rgba(0,255,65,0.08)" stroke="#00ff41" stroke-width="1.5" filter="url(#glow)"/>
+      <!-- Cabeça do robô -->
+      <rect x="40" y="22" width="40" height="28" rx="6" fill="rgba(0,255,65,0.1)" stroke="#00e5ff" stroke-width="1.5" filter="url(#glow)"/>
+      <!-- Olhos -->
+      <circle cx="50" cy="36" r="5" fill="#00ff41" filter="url(#glow)">
+        <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="70" cy="36" r="5" fill="#00ff41" filter="url(#glow)">
+        <animate attributeName="opacity" values="1;0.3;1" dur="2s" begin="0.5s" repeatCount="indefinite"/>
+      </circle>
+      <!-- Antena -->
+      <line x1="60" y1="22" x2="60" y2="10" stroke="#00e5ff" stroke-width="2" filter="url(#glow)"/>
+      <circle cx="60" cy="8" r="3" fill="#00e5ff" filter="url(#glow)">
+        <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+      <!-- Boca / Display -->
+      <rect x="46" y="46" width="28" height="8" rx="3" fill="rgba(0,229,255,0.15)" stroke="#00e5ff" stroke-width="1"/>
+      <rect x="48" y="48" width="5" height="4" rx="1" fill="#00e5ff" opacity="0.8">
+        <animate attributeName="opacity" values="0.8;0.2;0.8" dur="0.8s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="55" y="48" width="5" height="4" rx="1" fill="#00e5ff" opacity="0.8">
+        <animate attributeName="opacity" values="0.8;0.2;0.8" dur="0.8s" begin="0.2s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="62" y="48" width="5" height="4" rx="1" fill="#00e5ff" opacity="0.8">
+        <animate attributeName="opacity" values="0.8;0.2;0.8" dur="0.8s" begin="0.4s" repeatCount="indefinite"/>
+      </rect>
+      <!-- Braços -->
+      <rect x="20" y="42" width="14" height="32" rx="6" fill="rgba(0,255,65,0.08)" stroke="#00ff41" stroke-width="1.5"/>
+      <rect x="86" y="42" width="14" height="32" rx="6" fill="rgba(0,255,65,0.08)" stroke="#00ff41" stroke-width="1.5"/>
+      <!-- Pernas -->
+      <rect x="40" y="84" width="16" height="22" rx="5" fill="rgba(0,255,65,0.08)" stroke="#00ff41" stroke-width="1.5"/>
+      <rect x="64" y="84" width="16" height="22" rx="5" fill="rgba(0,255,65,0.08)" stroke="#00ff41" stroke-width="1.5"/>
+      <!-- Símbolo no peito -->
+      <text x="60" y="76" text-anchor="middle" fill="#00e5ff" font-size="10" font-family="monospace" filter="url(#glow)" opacity="0.9">⬡ AI</text>
+    </svg>
+  </div>
+
+  <!-- Título -->
+  <h1 class="brand-title">MANDROID.IA</h1>
+  <p class="brand-tagline">◈ INTELIGÊNCIA ARTIFICIAL AVANÇADA ◈</p>
+
+  <!-- Card de Login -->
+  <div class="login-card">
+    <!-- Decorações de canto -->
+    <div class="corner-decor corner-tl"></div>
+    <div class="corner-decor corner-tr"></div>
+    <div class="corner-decor corner-bl"></div>
+    <div class="corner-decor corner-br"></div>
+    <div class="scan-bar"></div>
+
+    <!-- Cabeçalho do Card -->
+    <div class="card-header">
+      <h2>⚡ ACESSO AO SISTEMA</h2>
+      <p>Autentique-se para continuar</p>
+    </div>
+
+    <!-- Mensagem de erro (se houver) -->
+    <div class="error-msg" id="error-msg">
+      ⚠ Falha na autenticação. Tente novamente.
+    </div>
+
+    <div class="divider">
+      <span>IDENTIFICAÇÃO SEGURA</span>
+    </div>
+
+    <!-- Botão Google Login -->
+    <a href="/auth/google" class="btn-google">
+      <!-- Ícone Google -->
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      ENTRAR COM GOOGLE
+    </a>
+
+    <!-- Nota de segurança -->
+    <div class="security-note">
+      <span>🔒 Login 100% seguro via OAuth 2.0 — nenhuma senha é armazenada</span>
+    </div>
+
+    <!-- Stats decorativos -->
+    <div class="stats-row">
+      <div class="stat-item">
+        <div class="stat-value">v2.0</div>
+        <div class="stat-label">Versão</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">GPT</div>
+        <div class="stat-label">Motor IA</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">100%</div>
+        <div class="stat-label">Seguro</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">mandroidapp &nbsp;|&nbsp; Adão Everton Tavares &nbsp;|&nbsp; MANDROID.IA © 2024</div>
+
+<script>
+// ── Matrix Rain Animation ────────────────────────
+(function initMatrix() {
+  const canvas = document.getElementById('matrix-canvas');
+  const ctx    = canvas.getContext('2d');
+
+  const CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&*<>{}[]MANDROIDIA';
+  const FONT_SIZE = 14;
+  let columns, drops;
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    columns = Math.floor(canvas.width / FONT_SIZE);
+    drops   = new Array(columns).fill(1);
+  }
+
+  function draw() {
+    ctx.fillStyle = 'rgba(0, 10, 0, 0.055)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < drops.length; i++) {
+      const char = CHARS[Math.floor(Math.random() * CHARS.length)];
+      const progress = drops[i] / (canvas.height / FONT_SIZE);
+
+      // Gradiente de cor por posição
+      if (progress < 0.2) {
+        ctx.fillStyle = `rgba(0, 255, 65, ${0.3 + progress * 2})`;
+      } else if (progress < 0.7) {
+        ctx.fillStyle = `rgba(0, 255, 65, 0.75)`;
+      } else {
+        ctx.fillStyle = `rgba(0, 229, 255, ${0.9 - (progress - 0.7) * 0.5})`;
+      }
+
+      // Primeiro caractere (brilhante)
+      if (drops[i] * FONT_SIZE === Math.floor(drops[i]) * FONT_SIZE) {
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#00ff41';
+        ctx.shadowBlur  = 12;
+      } else {
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.font = `${FONT_SIZE}px 'Share Tech Mono', monospace`;
+      ctx.fillText(char, i * FONT_SIZE, drops[i] * FONT_SIZE);
+
+      if (drops[i] * FONT_SIZE > canvas.height && Math.random() > 0.975) {
+        drops[i] = 0;
+      }
+      drops[i]++;
+    }
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  setInterval(draw, 40);
+})();
+
+// ── Verificar erro de autenticação ───────────────
+const params = new URLSearchParams(window.location.search);
+if (params.get('error') === 'auth_failed') {
+  document.getElementById('error-msg').classList.add('show');
+}
+</script>
+</body>
+</html>
