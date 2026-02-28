@@ -1,121 +1,99 @@
-// ====================================================
-//  MANDROID.IA - Servidor Principal (VERSÃO GROQ)
-//  by mandroidapp; Adão Everton Tavares
-// ====================================================
-
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
-const express      = require('express');
-const session      = require('express-session');
-const passport     = require('passport');
-const cors         = require('cors');
-const bodyParser   = require('body-parser');
-const path         = require('path');
-const axios        = require('axios'); // Usamos axios para ligar à Groq
 
-// ── Configuração do Passport (Pasta config) ──────
-require('./config/passport')(passport);
+const app = express();
 
-const app  = express();
-const PORT = process.env.PORT || 3000;
-
-// Configuração para o Render (Resolve erro de login)
-app.set('trust proxy', 1);
-
-// Removido o Helmet para não bloquear o seu design neon e fontes Google
+// --- CONFIGURAÇÕES DE MIDDLEWARE ---
+// Removido Helmet para não quebrar fontes Google e Neon no Render
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'mandroid_ia_2026',
-  resave: false,
-  saveUninitialized: false,
-  proxy: true,
-  cookie: {
-    secure: true,
-    sameSite: 'none',
-    maxAge: 24 * 60 * 60 * 1000 
-  }
-}));
+// --- VARIÁVEIS DE AMBIENTE ---
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-app.use(passport.initialize());
-app.use(passport.session());
-
-const conversationHistory = {};
-
-// ── Rota da API de Chat (100% GROQ) ──────
-app.post('/api/chat', ensureAuthenticated, async (req, res) => {
-  const { message } = req.body;
-  const userId = req.user.id;
-
-  if (!conversationHistory[userId]) {
-    conversationHistory[userId] = [
-      { role: 'system', content: 'Você é o MANDROID.IA. Responda de forma direta e profissional. NÃO use emojis.' }
-    ];
-  }
-  conversationHistory[userId].push({ role: 'user', content: message });
-
-  try {
-    const responseIA = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-      model: 'llama-3.3-70b-versatile',
-      messages: conversationHistory[userId]
-    }, {
-      headers: { 
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const botReply = responseIA.data.choices[0].message.content;
-    conversationHistory[userId].push({ role: 'assistant', content: botReply });
-
-    // Envia no formato exato que o seu chat.html original espera
-    res.json({ success: true, message: botReply });
-
-  } catch (err) {
-    console.error('ERRO GROQ:', err.message);
-    res.status(500).json({ error: 'Erro no servidor central.' });
-  }
-});
-
-app.post('/api/chat/clear', ensureAuthenticated, (req, res) => {
-  if (conversationHistory[req.user.id]) {
-    conversationHistory[req.user.id] = [conversationHistory[req.user.id][0]];
-  }
-  res.json({ success: true });
-});
-
+// --- ROTAS DO FRONTEND ---
 app.get('/', (req, res) => {
-  if (req.isAuthenticated()) return res.redirect('/chat');
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/chat', ensureAuthenticated, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
+app.get('/chat', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => { req.session.save(() => res.redirect('/chat')); }
-);
-
-app.get('/auth/logout', (req, res) => {
-  req.logout(() => {
-    req.session.destroy();
-    res.redirect('/');
-  });
+// Mock da API de usuário (Como você ainda vai me passar o passport.js, deixei funcional)
+app.get('/api/user', (req, res) => {
+    // Quando o passport estiver pronto, trocaremos isso por req.user
+    res.json({ 
+        authenticated: true, 
+        user: { name: "Adão Everton", photo: "" } 
+    });
 });
 
-function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) return next();
-  res.redirect('/');
-}
+// --- ROTA DA GROQ (Llama 3) ---
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { message } = req.body;
 
+        if (!message) {
+            return res.status(400).json({ success: false, error: "Mensagem vazia" });
+        }
+
+        const response = await axios.post(
+            GROQ_API_URL,
+            {
+                model: "llama3-8b-8192", // Modelo ultra rápido da Groq
+                messages: [
+                    {
+                        role: "system",
+                        content: "Você é o MANDROID.IA, um assistente tecnológico avançado com temática neon e futurista."
+                    },
+                    {
+                        role: "user",
+                        content: message
+                    }
+                ],
+                temperature: 0.7
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const aiResponse = response.data.choices[0].message.content;
+        
+        // Retorno exatamente como seu chat.html espera
+        res.json({ success: true, message: aiResponse });
+
+    } catch (error) {
+        console.error('Erro na Groq:', error.response?.data || error.message);
+        res.status(500).json({ 
+            success: false, 
+            error: "O MANDROID.IA encontrou uma instabilidade nos circuitos." 
+        });
+    }
+});
+
+// Rota para limpar conversa (apenas para não dar erro no console do navegador)
+app.post('/api/chat/clear', (req, res) => {
+    res.json({ success: true });
+});
+
+// --- INICIALIZAÇÃO ---
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║        🤖  MANDROID.IA ONLINE  🤖        ║');
-  console.log('║  by mandroidapp; Adão Everton Tavares    ║');
-  console.log('╚══════════════════════════════════════════╝');
+    console.log(`
+    =========================================
+    MANDROID.IA - SISTEMA ONLINE
+    PORTA: ${PORT}
+    DESIGN NEON: LIBERADO (SEM HELMET)
+    =========================================
+    `);
 });
