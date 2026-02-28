@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express      = require('express');
-const session      = require('express-session');
+const session      = require('session');
 const passport     = require('passport');
 const cors         = require('cors');
 const helmet       = require('helmet');
@@ -14,24 +14,17 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
+// HELMET AJUSTADO: Para não bloquear o carregamento do chat
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "http:"],
-      connectSrc: ["'self'", "https://accounts.google.com"],
-      frameSrc: ["'self'", "https://accounts.google.com"],
-    },
-  },
+  contentSecurityPolicy: false, 
 }));
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// CORREÇÃO 1: Nome da pasta igual ao seu GitHub ('público')
+app.use(express.static(path.join(__dirname, 'público')));
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_secret',
@@ -61,11 +54,14 @@ app.get('/api/user', (req, res) => {
   } else { res.json({ authenticated: false }); }
 });
 
-app.get('/', (req, res) => { if (req.isAuthenticated()) return res.redirect('/chat'); res.sendFile(path.join(__dirname, 'public', 'index.html')); });
+// CORREÇÃO 2: Rotas apontando para a pasta 'público' e arquivo 'bate-papo.html'
+app.get('/', (req, res) => { 
+  if (req.isAuthenticated()) return res.redirect('/chat'); 
+  res.sendFile(path.join(__dirname, 'público', 'index.html')); 
+});
 
-// Rota do Chat corrigida para o nome do seu arquivo
 app.get('/chat', ensureAuthenticated, (req, res) => { 
-  res.sendFile(path.join(__dirname, 'public', 'bate-papo.html')); 
+  res.sendFile(path.join(__dirname, 'público', 'bate-papo.html')); 
 });
 
 app.post('/api/clear', ensureAuthenticated, (req, res) => {
@@ -81,7 +77,7 @@ app.post('/api/chat', ensureAuthenticated, async (req, res) => {
   if (!conversationHistory[userId]) {
     conversationHistory[userId] = [{ 
         role: 'system', 
-        content: 'Você é o MANDROID.IA (ou mandroidapp.ia). Seja profissional, direto e não use emojis. Não use saudações exageradas. Se perguntarem quem você é ou o que é mandroidapp, diga que é uma IA desenvolvida por Adão Everton Tavares (aetm.developer@gmail.com). Ao final de cada resposta, seja útil.' 
+        content: 'Você é o MANDROID.IA. Seja profissional, direto e não use emojis. Se perguntarem quem você é, diga que é mandroidapp.ia desenvolvido por Adão Everton Tavares.' 
     }];
   }
   conversationHistory[userId].push({ role: 'user', content: message });
@@ -100,11 +96,14 @@ app.post('/api/chat', ensureAuthenticated, async (req, res) => {
     const reply = response.data.choices[0].message.content;
     conversationHistory[userId].push({ role: 'assistant', content: reply });
 
-    // Lógica de sugestões contextuais básica
-    const suggestions = ["Me dê um exemplo", "Explique melhor", "Próximo passo"];
-
-    // IMPORTANTE: Enviando como 'response' para o HTML reconhecer e sem emojis
-    res.json({ success: true, response: reply, suggestions: suggestions });
+    // CORREÇÃO 3: Resposta enviada como 'response' e inclusão de sugestões
+    const sugestoes = ["Me dê um exemplo", "Como isso funciona?", "Próximo passo"];
+    
+    res.json({ 
+      success: true, 
+      response: reply, 
+      suggestions: sugestoes 
+    });
 
   } catch (err) {
     console.error('Erro Groq:', err.response?.data || err.message);
