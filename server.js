@@ -19,6 +19,9 @@ require('./config/passport')(passport);
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// *** AJUSTE PARA O RENDER: Confia no proxy para manter a sessão segura ***
+app.set('trust proxy', 1);
+
 // ── OpenAI Client ─────────────────────────────────
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -42,13 +45,14 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Sessão ────────────────────────────────────────
+// ── Sessão (AJUSTADA PARA PRODUÇÃO NO RENDER) ────────────────────────
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_secret',
-  resave: false,
-  saveUninitialized: false,
+  resave: true, // Garante que a sessão seja salva corretamente
+  saveUninitialized: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: true, // Obrigatório para HTTPS no Render
+    sameSite: 'none', // Permite o redirecionamento do Google sem perder a sessão
     maxAge: 24 * 60 * 60 * 1000 // 24 horas
   }
 }));
@@ -207,8 +211,8 @@ function ensureAuthenticated(req, res, next) {
 // ============================================================
 app.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║        🤖  MANDROID.IA  🤖               ║');
-  console.log('║  by mandroidapp; Adão Everton Tavares    ║');
+  console.log('║        🤖  MANDROID.IA  🤖                ║');
+  console.log('║  by mandroidapp; Adão Everton Tavares     ║');
   console.log('╠══════════════════════════════════════════╣');
   console.log(`║  Servidor rodando em:                    ║`);
   console.log(`║  http://localhost:${PORT}                    ║`);
