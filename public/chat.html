@@ -1,43 +1,27 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <title>MANDROID.IA - Chat</title>
-    <style>
-        body { background: #000; color: #00ff41; font-family: monospace; padding: 20px; }
-        .chat-container { border: 1px solid #00ff41; height: 70vh; overflow-y: auto; padding: 15px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,255,65,0.2); }
-        .msg { margin-bottom: 10px; padding: 10px; border-radius: 5px; border: 1px solid #00ff41; width: fit-content; max-width: 80%; }
-        .user { align-self: flex-end; border-color: #00e5ff; color: #00e5ff; margin-left: auto; }
-        input { background: transparent; border: 1px solid #00ff41; color: #fff; padding: 10px; width: 80%; border-radius: 5px; }
-        button { background: #00ff41; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; border-radius: 5px; }
-    </style>
-</head>
-<body>
-    <h1>MANDROID.IA</h1>
-    <div id="chat-box" class="chat-container"></div>
-    <input type="text" id="user-input" placeholder="Digite aqui...">
-    <button onclick="enviar()">ENVIAR</button>
+async function sendMessage() {
+  const text = messageInput.value.trim();
+  if (!text) return;
 
-    <script>
-        async function enviar() {
-            const input = document.getElementById('user-input');
-            const box = document.getElementById('chat-box');
-            if(!input.value) return;
+  // Adiciona sua mensagem na tela
+  appendMessage('user', text);
+  messageInput.value = '';
+  
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }) // Garanta que a chave é "message"
+    });
 
-            box.innerHTML += `<div class="msg user">${input.value}</div>`;
-            const texto = input.value;
-            input.value = '';
+    const data = await response.json();
 
-            const res = await fetch('/api/chat', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ message: texto })
-            });
-            const data = await res.json();
-            // Lendo 'response' corretamente para evitar undefined
-            box.innerHTML += `<div class="msg">MANDROID: ${data.response}</div>`;
-            box.scrollTop = box.scrollHeight;
-        }
-    </script>
-</body>
-</html>
+    if (data.success) {
+      appendMessage('bot', data.message);
+    } else {
+      showToast('⚠ ERRO NA RESPOSTA');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('⚠ ERRO DE CONEXÃO');
+  }
+}
