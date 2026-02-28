@@ -47,7 +47,14 @@ const conversationHistory = {};
 
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/?error=auth_failed' }), (req, res) => { res.redirect('/chat'); });
-app.get('/auth/logout', (req, res) => { req.logout((err) => { req.session.destroy(); res.redirect('/'); }); });
+
+// --- BOTÃO SAIR: ROTA DE LOGOUT CORRIGIDA ---
+app.get('/auth/logout', (req, res) => { 
+  req.logout((err) => { 
+    req.session.destroy(); 
+    res.redirect('/'); 
+  }); 
+});
 
 app.get('/api/user', (req, res) => {
   if (req.isAuthenticated()) {
@@ -58,13 +65,20 @@ app.get('/api/user', (req, res) => {
 app.get('/', (req, res) => { if (req.isAuthenticated()) return res.redirect('/chat'); res.sendFile(path.join(__dirname, 'public', 'index.html')); });
 app.get('/chat', ensureAuthenticated, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'chat.html')); });
 
-// --- CONEXÃO COM A GROQ COM PERSONALIDADE DIVERTIDA ---
+// --- BOTÃO LIMPAR: ROTA PARA APAGAR O HISTÓRICO ---
+app.post('/api/clear', ensureAuthenticated, (req, res) => {
+  const userId = req.user.id;
+  if (conversationHistory[userId]) {
+    delete conversationHistory[userId]; // Apaga a memória da conversa no servidor
+  }
+  res.json({ success: true });
+});
+
 app.post('/api/chat', ensureAuthenticated, async (req, res) => {
   const { message } = req.body;
   const userId = req.user.id;
 
   if (!conversationHistory[userId]) {
-    // AQUI ESTÁ A MUDANÇA: PERSONALIDADE AMIGÁVEL E DIVERTIDA
     conversationHistory[userId] = [{ 
         role: 'system', 
         content: 'Você é o MANDROID.IA, um parceiro de criação super divertido, amigável e entusiasmado, criado pelo desenvolvedor Adão Everton Tavares. Use muitos emojis (🚀, ✨, 🤖), seja sempre positivo, engraçado e trate o Adão como um grande mestre da tecnologia! Se ele pedir ajuda, explique com alegria!' 
