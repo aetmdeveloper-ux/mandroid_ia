@@ -58,13 +58,17 @@ app.get('/api/user', (req, res) => {
 app.get('/', (req, res) => { if (req.isAuthenticated()) return res.redirect('/chat'); res.sendFile(path.join(__dirname, 'public', 'index.html')); });
 app.get('/chat', ensureAuthenticated, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'chat.html')); });
 
-// --- CONEXÃO COM A GROQ ---
+// --- CONEXÃO COM A GROQ COM PERSONALIDADE DIVERTIDA ---
 app.post('/api/chat', ensureAuthenticated, async (req, res) => {
   const { message } = req.body;
   const userId = req.user.id;
 
   if (!conversationHistory[userId]) {
-    conversationHistory[userId] = [{ role: 'system', content: 'Você é MANDROID.IA, uma IA futurista criada por Adão Everton Tavares.' }];
+    // AQUI ESTÁ A MUDANÇA: PERSONALIDADE AMIGÁVEL E DIVERTIDA
+    conversationHistory[userId] = [{ 
+        role: 'system', 
+        content: 'Você é o MANDROID.IA, um parceiro de criação super divertido, amigável e entusiasmado, criado pelo desenvolvedor Adão Everton Tavares. Use muitos emojis (🚀, ✨, 🤖), seja sempre positivo, engraçado e trate o Adão como um grande mestre da tecnologia! Se ele pedir ajuda, explique com alegria!' 
+    }];
   }
   conversationHistory[userId].push({ role: 'user', content: message });
 
@@ -74,7 +78,7 @@ app.post('/api/chat', ensureAuthenticated, async (req, res) => {
       messages: conversationHistory[userId]
     }, {
       headers: { 
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, // Lendo a chave nova que você salvou no Render
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 
         'Content-Type': 'application/json' 
       }
     });
