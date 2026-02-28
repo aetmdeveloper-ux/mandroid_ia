@@ -1,36 +1,25 @@
-// ====================================================
-//  MANDROID.IA - Servidor Principal (Versão GROQ)
-//  by mandroidapp; Adão Everton Tavares
-// ====================================================
-
 require('dotenv').config();
-const express      = require('express');
-const session      = require('express-session');
-const passport     = require('passport');
-const cors         = require('cors');
-const helmet       = require('helmet');
-const bodyParser   = require('body-parser');
-const path         = require('path');
-const axios        = require('axios');
+const express = require('express');
+const session = require('express-session');
+const passport = require('passport');
+const path = require('path');
+const axios = require('axios');
+const bodyParser = require('body-parser');
 
-// Configuração do Passport
 require('./config/passport')(passport);
 
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Essencial para o Render confiar no HTTPS e manter o login
+// Configuração para o Render (Segurança de HTTPS)
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Configuração de Sessão Blindada para o Render
+// Sessão Blindada (Resolve o erro de ficar na mesma tela)
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'mandroid_ia_secret_2024',
+  secret: process.env.SESSION_SECRET || 'mandroid_ia_2026',
   resave: false,
   saveUninitialized: false,
   proxy: true,
@@ -44,72 +33,40 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-const conversationHistory = {};
+const history = {};
 
-// --- ROTAS DE AUTENTICAÇÃO ---
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-
-app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => {
-    req.session.save(() => { res.redirect('/chat'); });
-  }
-);
-
-app.get('/auth/logout', (req, res) => {
-  req.logout(() => {
-    req.session.destroy();
-    res.redirect('/');
-  });
-});
-
-// --- ROTAS DE PÁGINAS (DESIGN ORIGINAL) ---
-app.get('/', (req, res) => {
-  if (req.isAuthenticated()) return res.redirect('/chat');
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/chat', (req, res) => {
-  if (!req.isAuthenticated()) return res.redirect('/');
-  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
-});
-
-// --- API DE CHAT (INTEGRAÇÃO GROQ) ---
+// --- API DE CHAT (GROQ) ---
 app.post('/api/chat', async (req, res) => {
-  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Não autorizado' });
-  
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Acesso Negado' });
   const { message } = req.body;
-  const userId = req.user.id;
+  const uid = req.user.id;
 
-  if (!conversationHistory[userId]) {
-    conversationHistory[userId] = [
-      { role: 'system', content: 'Você é o MANDROID.IA. Responda de forma direta e profissional. NÃO use emojis.' }
-    ];
-  }
-  conversationHistory[userId].push({ role: 'user', content: message });
+  if (!history[uid]) history[uid] = [{ role: 'system', content: 'Você é o MANDROID.IA. Responda de forma profissional e direta. NÃO use emojis.' }];
+  history[uid].push({ role: 'user', content: message });
 
   try {
-    const responseIA = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
       model: 'llama-3.3-70b-versatile',
-      messages: conversationHistory[userId]
+      messages: history[uid]
     }, {
       headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` }
     });
-
-    const reply = responseIA.data.choices[0].message.content;
-    conversationHistory[userId].push({ role: 'assistant', content: reply });
-
-    // Envia no formato que o seu chat.html original lê
-    res.json({ success: true, message: reply });
+    const botMsg = response.data.choices[0].message.content;
+    history[uid].push({ role: 'assistant', content: botMsg });
+    res.json({ success: true, message: botMsg });
   } catch (err) {
-    res.status(500).json({ error: 'Erro no terminal.' });
+    res.status(500).json({ error: 'Erro no servidor central.' });
   }
 });
 
-// Limpar histórico (função do seu design)
-app.post('/api/chat/clear', (req, res) => {
-  if (req.user) conversationHistory[req.user.id] = [];
-  res.json({ success: true });
-});
+// --- ROTAS DE LOGIN E PÁGINAS ---
+app.get('/', (req, res) => req.isAuthenticated() ? res.redirect('/chat') : res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/chat', (req, res) => req.isAuthenticated() ? res.sendFile(path.join(__dirname, 'public', 'chat.html')) : res.redirect('/'));
 
-app.listen(PORT, () => console.log(`MANDROID ONLINE NA PORTA ${PORT}`));
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
+  req.session.save(() => res.redirect('/chat'));
+});
+app.get('/auth/logout', (req, res) => req.logout(() => res.redirect('/')));
+
+app.listen(PORT, () => console.log('MANDROID ONLINE'));
