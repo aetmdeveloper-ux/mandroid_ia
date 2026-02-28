@@ -48,7 +48,6 @@ const conversationHistory = {};
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/?error=auth_failed' }), (req, res) => { res.redirect('/chat'); });
 
-// --- BOTÃO SAIR: ROTA DE LOGOUT CORRIGIDA ---
 app.get('/auth/logout', (req, res) => { 
   req.logout((err) => { 
     req.session.destroy(); 
@@ -63,14 +62,15 @@ app.get('/api/user', (req, res) => {
 });
 
 app.get('/', (req, res) => { if (req.isAuthenticated()) return res.redirect('/chat'); res.sendFile(path.join(__dirname, 'public', 'index.html')); });
-app.get('/chat', ensureAuthenticated, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'chat.html')); });
 
-// --- BOTÃO LIMPAR: ROTA PARA APAGAR O HISTÓRICO ---
+// Rota do Chat corrigida para o nome do seu arquivo
+app.get('/chat', ensureAuthenticated, (req, res) => { 
+  res.sendFile(path.join(__dirname, 'public', 'bate-papo.html')); 
+});
+
 app.post('/api/clear', ensureAuthenticated, (req, res) => {
   const userId = req.user.id;
-  if (conversationHistory[userId]) {
-    delete conversationHistory[userId]; // Apaga a memória da conversa no servidor
-  }
+  if (conversationHistory[userId]) { delete conversationHistory[userId]; }
   res.json({ success: true });
 });
 
@@ -81,7 +81,7 @@ app.post('/api/chat', ensureAuthenticated, async (req, res) => {
   if (!conversationHistory[userId]) {
     conversationHistory[userId] = [{ 
         role: 'system', 
-        content: 'Você é o MANDROID.IA, um parceiro de criação super divertido, amigável e entusiasmado, criado pelo desenvolvedor Adão Everton Tavares. Use muitos emojis (🚀, ✨, 🤖), seja sempre positivo, engraçado e trate o Adão como um grande mestre da tecnologia! Se ele pedir ajuda, explique com alegria!' 
+        content: 'Você é o MANDROID.IA (ou mandroidapp.ia). Seja profissional, direto e não use emojis. Não use saudações exageradas. Se perguntarem quem você é ou o que é mandroidapp, diga que é uma IA desenvolvida por Adão Everton Tavares (aetm.developer@gmail.com). Ao final de cada resposta, seja útil.' 
     }];
   }
   conversationHistory[userId].push({ role: 'user', content: message });
@@ -99,11 +99,16 @@ app.post('/api/chat', ensureAuthenticated, async (req, res) => {
 
     const reply = response.data.choices[0].message.content;
     conversationHistory[userId].push({ role: 'assistant', content: reply });
-    res.json({ success: true, message: reply });
+
+    // Lógica de sugestões contextuais básica
+    const suggestions = ["Me dê um exemplo", "Explique melhor", "Próximo passo"];
+
+    // IMPORTANTE: Enviando como 'response' para o HTML reconhecer e sem emojis
+    res.json({ success: true, response: reply, suggestions: suggestions });
 
   } catch (err) {
     console.error('Erro Groq:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Erro ao processar mensagem.' });
+    res.status(500).json({ response: 'Erro ao processar mensagem.' });
   }
 });
 
