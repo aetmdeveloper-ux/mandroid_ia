@@ -3,184 +3,178 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MANDROID.IA — Sistema de Chat</title>
+  <title>MANDROID.IA — Chat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
   <style>
-    /* ── Variáveis e Reset ──────────────────────── */
+    /* ── Reset e Base ───────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --neon-green:      #00ff41;
-      --neon-cyan:       #00e5ff;
-      --dark-bg:         #000800;
-      --panel-bg:        rgba(0, 15, 0, 0.95);
-      --msg-user-bg:     rgba(0, 40, 20, 0.8);
-      --msg-ai-bg:       rgba(0, 20, 40, 0.8);
-      --border:          rgba(0, 255, 65, 0.25);
-      --text-main:       #e0ffe0;
+      --neon-green:  #00ff41;
+      --neon-cyan:   #00e5ff;
+      --dark-bg:     #000a00;
+      --border-glow: rgba(0, 255, 65, 0.4);
     }
+    body { background: var(--dark-bg); color: #e0ffe0; font-family: 'Rajdhani', sans-serif; height: 100vh; overflow: hidden; }
+    #matrix-canvas { position: fixed; inset: 0; z-index: 0; opacity: 0.2; }
 
-    body {
-      background: var(--dark-bg);
-      color: var(--text-main);
-      font-family: 'Rajdhani', sans-serif;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    /* Matrix Rain de fundo */
-    #matrix-canvas { position: fixed; inset: 0; opacity: 0.15; z-index: 0; }
-
-    .app-container {
-      position: relative; z-index: 1;
-      display: flex; flex-direction: column;
-      height: 100vh; max-width: 1000px; margin: 0 auto; padding: 10px;
-    }
+    .app-wrapper { position: relative; z-index: 2; display: flex; flex-direction: column; height: 100vh; padding: 20px; gap: 15px; }
 
     /* Header */
-    .header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 15px; border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(10px);
-    }
-    .brand { font-family: 'Orbitron', sans-serif; letter-spacing: 3px; color: var(--neon-green); font-weight: 700; }
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 10px; }
+    .brand-title { font-family: 'Orbitron'; color: var(--neon-green); font-size: 1.8rem; letter-spacing: 4px; }
 
-    /* Chat Area */
-    .chat-box {
-      flex: 1; overflow-y: auto; padding: 20px 10px;
-      display: flex; flex-direction: column; gap: 20px;
+    /* Terminal de Conversas (Visual da Imagem 1) */
+    .terminal-conversas {
+      flex: 1; border: 1px solid var(--border-glow); border-radius: 15px;
+      background: rgba(0, 15, 0, 0.8); backdrop-filter: blur(10px);
+      display: flex; flex-direction: column; overflow: hidden;
     }
+    .terminal-header { padding: 10px 20px; border-bottom: 1px solid var(--border-glow); font-family: 'Share Tech Mono'; color: var(--neon-green); font-size: 0.9rem; }
     
-    .message { max-width: 85%; padding: 12px 16px; border-radius: 8px; line-height: 1.6; font-size: 1rem; position: relative; }
-    .user-msg { align-self: flex-end; background: var(--msg-user-bg); border-right: 3px solid var(--neon-cyan); }
-    .ai-msg { align-self: flex-start; background: var(--msg-ai-bg); border-left: 3px solid var(--neon-green); }
+    #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+    
+    /* Mensagens sem emojis */
+    .msg { max-width: 85%; padding: 12px 18px; border-radius: 8px; line-height: 1.6; }
+    .user-msg { align-self: flex-end; background: rgba(0, 229, 255, 0.1); border: 1px solid var(--neon-cyan); }
+    .ai-msg { align-self: flex-start; background: rgba(0, 255, 65, 0.1); border: 1px solid var(--neon-green); }
+
+    /* Centro com Robô (Início) */
+    .welcome-center { margin: auto; text-align: center; opacity: 0.6; }
+    .welcome-center svg { width: 60px; height: 60px; filter: drop-shadow(0 0 10px var(--neon-green)); margin-bottom: 10px; }
+
+    /* Terminal de Entrada */
+    .terminal-entrada {
+      border: 1px solid var(--border-glow); border-radius: 15px;
+      background: rgba(0, 15, 0, 0.8); padding: 15px;
+    }
+    .input-row { display: flex; gap: 15px; align-items: center; }
+    textarea {
+      flex: 1; background: transparent; border: 1px solid var(--border-glow);
+      border-radius: 20px; padding: 12px 20px; color: white; outline: none; resize: none;
+    }
+    .btn-enviar {
+      background: none; border: 2px solid var(--neon-green); color: var(--neon-green);
+      padding: 10px; border-radius: 50%; cursor: pointer; transition: 0.3s;
+    }
+    .btn-enviar:hover { background: var(--neon-green); color: black; }
 
     /* Sugestões Contextuais */
-    .suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .suggestions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .sug-btn {
-      background: rgba(0, 255, 65, 0.1); border: 1px solid var(--border);
-      color: var(--neon-green); padding: 6px 12px; border-radius: 20px;
-      font-size: 0.85rem; cursor: pointer; transition: 0.2s;
+      background: transparent; border: 1px solid var(--neon-green); color: var(--neon-green);
+      padding: 5px 12px; border-radius: 15px; cursor: pointer; font-size: 0.8rem;
     }
-    .sug-btn:hover { background: var(--neon-green); color: black; }
-
-    /* Input Area */
-    .input-area { padding: 15px; background: var(--panel-bg); border-radius: 12px; border: 1px solid var(--border); }
-    .input-form { display: flex; gap: 10px; }
-    textarea {
-      flex: 1; background: transparent; border: none; color: white;
-      resize: none; outline: none; font-size: 1rem; font-family: inherit;
-    }
-    .send-btn { background: var(--neon-green); border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-
-    /* Scrollbar Custom */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-thumb { background: var(--border); }
   </style>
 </head>
 <body>
 
 <canvas id="matrix-canvas"></canvas>
 
-<div class="app-container">
+<div class="app-wrapper">
   <header class="header">
-    <div class="brand">MANDROID.IA</div>
+    <div class="brand-title">MANDROID.IA</div>
     <div style="display:flex; gap:10px;">
-      <button onclick="clearChat()" style="background:transparent; color:#00e5ff; border:1px solid #00e5ff; padding:5px 10px; cursor:pointer; border-radius:4px;">LIMPAR</button>
-      <button onclick="window.location.href='/auth/logout'" style="background:transparent; color:#ff4444; border:1px solid #ff4444; padding:5px 10px; cursor:pointer; border-radius:4px;">SAIR</button>
+      <button onclick="limparChat()" style="background:none; border:1px solid var(--neon-cyan); color:var(--neon-cyan); padding:5px 15px; cursor:pointer; border-radius:5px;">LIMPAR</button>
+      <button onclick="window.location.href='/auth/logout'" style="background:none; border:1px solid #ff4444; color:#ff4444; padding:5px 15px; cursor:pointer; border-radius:5px;">SAIR</button>
     </div>
   </header>
 
-  <main class="chat-box" id="chat-box">
-    <div class="message ai-msg">
-      MANDROID.IA online. Como posso auxiliar em seu projeto hoje?
+  <div class="terminal-conversas">
+    <div class="terminal-header">● TERMINAL DE CONVERSAS</div>
+    <div id="chat-box">
+      <div class="welcome-center" id="welcome-msg">
+        <svg viewBox="0 0 120 120"><rect x="40" y="22" width="40" height="28" rx="6" fill="none" stroke="#00ff41" stroke-width="2"/><circle cx="50" cy="36" r="3" fill="#00ff41"/><circle cx="70" cy="36" r="3" fill="#00ff41"/><path d="M45 60 L75 60" stroke="#00ff41" stroke-width="2"/></svg>
+        <p>MANDROID.IA ONLINE</p>
+        <small>Faça sua pergunta abaixo para iniciar</small>
+      </div>
     </div>
-  </main>
+  </div>
 
-  <footer class="input-area">
-    <form class="input-form" onsubmit="event.preventDefault(); sendMessage();">
-      <textarea id="user-input" placeholder="Digite sua mensagem ou comando..." rows="1"></textarea>
-      <button type="submit" class="send-btn">ENVIAR</button>
-    </form>
-  </footer>
+  <div class="terminal-entrada">
+    <div class="terminal-header" style="border:none; padding: 0 0 10px 5px;">● TERMINAL DE ENTRADA</div>
+    <div class="input-row">
+      <textarea id="user-input" placeholder="Digite sua pergunta aqui..." rows="1"></textarea>
+      <button class="btn-enviar" onclick="enviarMensagem()">➤</button>
+    </div>
+  </div>
 </div>
 
 <script>
-  // Matrix Effect
+  // Matrix Rain Background
   const canvas = document.getElementById('matrix-canvas');
   const ctx = canvas.getContext('2d');
   canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-  const drops = new Array(Math.floor(canvas.width/20)).fill(1);
-  function drawMatrix() {
-    ctx.fillStyle = "rgba(0, 8, 0, 0.1)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#00ff41";
+  const drops = new Array(Math.floor(canvas.width / 15)).fill(1);
+  function draw() {
+    ctx.fillStyle = 'rgba(0, 10, 0, 0.05)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00ff41'; ctx.font = '15px monospace';
     drops.forEach((y, i) => {
-      ctx.fillText(Math.floor(Math.random()*2), i*20, y*20);
-      if (y*20 > canvas.height && Math.random() > 0.98) drops[i] = 0;
+      const text = String.fromCharCode(0x30A0 + Math.random() * 96);
+      ctx.fillText(text, i * 15, y * 15);
+      if (y * 15 > canvas.height && Math.random() > 0.975) drops[i] = 0;
       drops[i]++;
     });
   }
-  setInterval(drawMatrix, 50);
+  setInterval(draw, 50);
 
   const chatBox = document.getElementById('chat-box');
   const userInput = document.getElementById('user-input');
 
-  async function sendMessage(text = null) {
-    const message = text || userInput.value.trim();
-    if (!message) return;
+  async function enviarMensagem(textoManual = null) {
+    const mensagem = textoManual || userInput.value.trim();
+    if (!mensagem) return;
 
-    // Adiciona mensagem do usuário
-    appendMessage(message, 'user-msg');
+    // Remove a mensagem de boas-vindas na primeira interação
+    const welcome = document.getElementById('welcome-msg');
+    if (welcome) welcome.remove();
+
+    adicionarNaTela(mensagem, 'user-msg');
     userInput.value = '';
 
     try {
-      const response = await fetch('/api/chat', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ message: mensagem })
       });
-      const data = await response.json();
+      const data = await res.json();
       
-      // Adiciona resposta da IA e sugestões
-      appendMessage(data.response, 'ai-msg', data.suggestions);
+      adicionarNaTela(data.response, 'ai-msg', data.suggestions);
     } catch (e) {
-      appendMessage("Erro na comunicação com o servidor.", 'ai-msg');
+      adicionarNaTela("Erro na conexão com o servidor.", 'ai-msg');
     }
   }
 
-  function appendMessage(text, className, suggestions = []) {
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${className}`;
-    msgDiv.innerText = text;
-    chatBox.appendChild(msgDiv);
+  function adicionarNaTela(texto, classe, sugestoes = []) {
+    const div = document.createElement('div');
+    div.className = `msg ${classe}`;
+    div.innerText = texto;
+    chatBox.appendChild(div);
 
-    if (suggestions && suggestions.length > 0) {
-      const sugContainer = document.createElement('div');
-      sugContainer.className = 'suggestions';
-      suggestions.forEach(s => {
-        const btn = document.createElement('button');
-        btn.className = 'sug-btn';
-        btn.innerText = s;
-        btn.onclick = () => sendMessage(s);
-        sugContainer.appendChild(btn);
+    if (sugestoes && sugestoes.length > 0) {
+      const sugDiv = document.createElement('div');
+      sugDiv.className = 'suggestions';
+      sugestoes.forEach(s => {
+        const b = document.createElement('button');
+        b.className = 'sug-btn';
+        b.innerText = s;
+        b.onclick = () => enviarMensagem(s);
+        sugDiv.appendChild(b);
       });
-      chatBox.appendChild(sugContainer);
+      chatBox.appendChild(sugDiv);
     }
-    
+
     chatBox.scrollTop = chatBox.scrollHeight;
   }
 
-  async function clearChat() {
+  async function limparChat() {
     await fetch('/api/clear', { method: 'POST' });
-    chatBox.innerHTML = '<div class="message ai-msg">Histórico limpo. MANDROID.IA pronto para novas instruções.</div>';
+    location.reload();
   }
 
-  // Ajuste automático do textarea
-  userInput.addEventListener('input', function() {
-    this.style.height = 'auto';
-    this.style.height = (this.scrollHeight) + 'px';
-  });
+  userInput.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensagem(); } };
 </script>
 </body>
 </html>
