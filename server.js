@@ -1,8 +1,3 @@
-// ====================================================
-//  MANDROID.IA - Servidor Principal
-//  by mandroidapp; Adão Everton Tavares
-// ====================================================
-
 require('dotenv').config();
 const express      = require('express');
 const session      = require('express-session');
@@ -11,21 +6,14 @@ const cors         = require('cors');
 const helmet       = require('helmet');
 const bodyParser   = require('body-parser');
 const path         = require('path');
-const OpenAI       = require('openai');
+const axios        = require('axios'); 
 
-// ── Configuração do Passport / Google OAuth ──────
 require('./config/passport')(passport);
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
-
-// *** AJUSTE PARA O RENDER: Confia no proxy para manter a sessão segura ***
 app.set('trust proxy', 1);
 
-// ── OpenAI Client ─────────────────────────────────
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// ── Middlewares ───────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -45,176 +33,62 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Sessão (AJUSTADA PARA PRODUÇÃO NO RENDER) ────────────────────────
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_secret',
-  resave: true, // Garante que a sessão seja salva corretamente
+  resave: true,
   saveUninitialized: true,
-  cookie: {
-    secure: true, // Obrigatório para HTTPS no Render
-    sameSite: 'none', // Permite o redirecionamento do Google sem perder a sessão
-    maxAge: 24 * 60 * 60 * 1000 // 24 horas
-  }
+  cookie: { secure: true, sameSite: 'none', maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// ── Passport ──────────────────────────────────────
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ── Histórico de conversas em memória ────────────
 const conversationHistory = {};
 
-// ============================================================
-//  ROTAS DE AUTENTICAÇÃO
-// ============================================================
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/?error=auth_failed' }), (req, res) => { res.redirect('/chat'); });
+app.get('/auth/logout', (req, res) => { req.logout((err) => { req.session.destroy(); res.redirect('/'); }); });
 
-// Iniciar login com Google
-app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
-
-// Callback do Google
-app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/?error=auth_failed' }),
-  (req, res) => {
-    res.redirect('/chat');
-  }
-);
-
-// Logout
-app.get('/auth/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) console.error(err);
-    req.session.destroy();
-    res.redirect('/');
-  });
-});
-
-// Dados do usuário logado
 app.get('/api/user', (req, res) => {
   if (req.isAuthenticated()) {
-    res.json({
-      authenticated: true,
-      user: {
-        id: req.user.id,
-        name: req.user.displayName,
-        email: req.user.emails?.[0]?.value,
-        photo: req.user.photos?.[0]?.value
-      }
-    });
-  } else {
-    res.json({ authenticated: false });
-  }
+    res.json({ authenticated: true, user: { id: req.user.id, name: req.user.displayName, email: req.user.emails?.[0]?.value, photo: req.user.photos?.[0]?.value } });
+  } else { res.json({ authenticated: false }); }
 });
 
-// ============================================================
-//  ROTAS DE PÁGINAS
-// ============================================================
+app.get('/', (req, res) => { if (req.isAuthenticated()) return res.redirect('/chat'); res.sendFile(path.join(__dirname, 'public', 'index.html')); });
+app.get('/chat', ensureAuthenticated, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'chat.html')); });
 
-// Página inicial (login)
-app.get('/', (req, res) => {
-  if (req.isAuthenticated()) return res.redirect('/chat');
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Página de chat (protegida)
-app.get('/chat', ensureAuthenticated, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
-});
-
-// ============================================================
-//  API DE CHAT - OPENAI
-// ============================================================
+// --- CONEXÃO COM A GROQ ---
 app.post('/api/chat', ensureAuthenticated, async (req, res) => {
   const { message } = req.body;
   const userId = req.user.id;
 
-  if (!message || !message.trim()) {
-    return res.status(400).json({ error: 'Mensagem vazia.' });
-  }
-
-  // Inicializa histórico do usuário
   if (!conversationHistory[userId]) {
-    conversationHistory[userId] = [
-      {
-        role: 'system',
-        content: `Você é MANDROID.IA, uma inteligência artificial avançada e futurista criada por mandroidapp (Adão Everton Tavares). 
-        Você é altamente inteligente, preciso, direto e confiável. 
-        Responda sempre em português brasileiro de forma clara, objetiva e detalhada. 
-        Quando apropriado, use formatação para tornar as respostas mais legíveis.
-        Você tem personalidade tecnológica, futurista e empática.`
-      }
-    ];
+    conversationHistory[userId] = [{ role: 'system', content: 'Você é MANDROID.IA, uma IA futurista criada por Adão Everton Tavares.' }];
   }
-
-  // Adiciona mensagem do usuário
   conversationHistory[userId].push({ role: 'user', content: message });
 
-  // Limita histórico a 20 mensagens para controlar tokens
-  if (conversationHistory[userId].length > 21) {
-    const systemMsg = conversationHistory[userId][0];
-    conversationHistory[userId] = [systemMsg, ...conversationHistory[userId].slice(-20)];
-  }
-
   try {
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-      messages: conversationHistory[userId],
-      max_tokens: 1500,
-      temperature: 0.7,
+    const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+      model: 'llama-3.3-70b-versatile',
+      messages: conversationHistory[userId]
+    }, {
+      headers: { 
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, // Lendo a chave nova que você salvou no Render
+        'Content-Type': 'application/json' 
+      }
     });
 
-    const assistantMessage = completion.choices[0].message.content;
-    conversationHistory[userId].push({ role: 'assistant', content: assistantMessage });
-
-    res.json({
-      success: true,
-      message: assistantMessage,
-      tokens: completion.usage?.total_tokens
-    });
+    const reply = response.data.choices[0].message.content;
+    conversationHistory[userId].push({ role: 'assistant', content: reply });
+    res.json({ success: true, message: reply });
 
   } catch (err) {
-    console.error('Erro OpenAI:', err.message);
-
-    // Resposta de fallback se OpenAI não estiver configurado
-    if (err.code === 'invalid_api_key' || err.message.includes('API key')) {
-      return res.json({
-        success: true,
-        message: `⚠️ **MANDROID.IA** está em modo demonstração.\n\nPara ativar a IA completa, configure sua chave OpenAI no arquivo **.env**:\n\`\`\`\nOPENAI_API_KEY=sua_chave_aqui\n\`\`\`\n\nSua pergunta foi: *"${message}"*\n\nAcesse **https://platform.openai.com/api-keys** para obter sua chave.`
-      });
-    }
-
-    res.status(500).json({ error: 'Erro ao processar sua mensagem. Tente novamente.' });
+    console.error('Erro Groq:', err.response?.data || err.message);
+    res.status(500).json({ error: 'Erro ao processar mensagem.' });
   }
 });
 
-// Limpar histórico de conversa
-app.post('/api/chat/clear', ensureAuthenticated, (req, res) => {
-  const userId = req.user.id;
-  if (conversationHistory[userId]) {
-    const systemMsg = conversationHistory[userId][0];
-    conversationHistory[userId] = [systemMsg];
-  }
-  res.json({ success: true, message: 'Histórico limpo.' });
-});
+function ensureAuthenticated(req, res, next) { if (req.isAuthenticated()) return next(); res.redirect('/'); }
 
-// ============================================================
-//  MIDDLEWARE DE AUTENTICAÇÃO
-// ============================================================
-function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) return next();
-  res.redirect('/');
-}
-
-// ============================================================
-//  INICIALIZAÇÃO DO SERVIDOR
-// ============================================================
-app.listen(PORT, () => {
-  console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║        🤖  MANDROID.IA  🤖                ║');
-  console.log('║  by mandroidapp; Adão Everton Tavares     ║');
-  console.log('╠══════════════════════════════════════════╣');
-  console.log(`║  Servidor rodando em:                    ║`);
-  console.log(`║  http://localhost:${PORT}                    ║`);
-  console.log('╚══════════════════════════════════════════╝\n');
-});
+app.listen(PORT, () => { console.log(`MANDROID.IA pronto na porta ${PORT}`); });
