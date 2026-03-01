@@ -4,7 +4,7 @@ const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
 const cors = require('cors');
-const https = require('https'); // Nativo, não dá erro de "not found"
+const https = require('https');
 
 require('./config/passport')(passport);
 
@@ -42,21 +42,21 @@ app.get('/api/user', (req, res) => {
   }
 });
 
-// ── Rota do chat (VERSÃO DIRETA E NATIVA) ──────────────────
+// ── ROTA DO CHAT: MUDANÇA PARA O MODELO "GEMINI-PRO" (VERSÃO 1) ──────────────────
 app.post('/api/chat', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Faça login primeiro" });
 
   const { message } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   
-  // Dados para o Google
   const data = JSON.stringify({
     contents: [{ parts: [{ text: message }] }]
   });
 
   const options = {
     hostname: 'generativelanguage.googleapis.com',
-    path: `/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    // Mudamos para gemini-pro na v1, que é o caminho mais seguro contra o erro 404
+    path: `/v1/models/gemini-pro:generateContent?key=${apiKey}`,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -71,13 +71,15 @@ app.post('/api/chat', async (req, res) => {
       try {
         const json = JSON.parse(responseData);
         if (json.error) {
-          res.status(500).json({ success: false, error: json.error.message });
-        } else {
+          res.status(500).json({ success: false, error: "Google diz: " + json.error.message });
+        } else if (json.candidates && json.candidates[0].content) {
           const aiText = json.candidates[0].content.parts[0].text;
           res.json({ success: true, message: aiText });
+        } else {
+          res.status(500).json({ success: false, error: "Resposta vazia do Google." });
         }
       } catch (e) {
-        res.status(500).json({ success: false, error: "Erro ao ler resposta do Google" });
+        res.status(500).json({ success: false, error: "Erro no processamento da IA." });
       }
     });
   });
