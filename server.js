@@ -4,7 +4,7 @@ const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
 const cors = require('cors');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const https = require('https'); // Nativo, não dá erro de "not found"
 
 require('./config/passport')(passport);
 
@@ -27,7 +27,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Rotas de Autenticação
+// Autenticação
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => res.redirect('/chat.html'));
 app.get('/logout', (req, res) => {
@@ -42,41 +42,52 @@ app.get('/api/user', (req, res) => {
   }
 });
 
-// ── Rota do chat (CHAMADA DIRETA - SEM LOOPING) ──────────────────
+// ── Rota do chat (VERSÃO DIRETA E NATIVA) ──────────────────
 app.post('/api/chat', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Faça login primeiro" });
 
   const { message } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
+  
+  // Dados para o Google
+  const data = JSON.stringify({
+    contents: [{ parts: [{ text: message }] }]
+  });
 
-  try {
-    // Chamada direta para a API do Google (v1) para evitar o erro 404 da v1beta
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: message }] }]
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message);
+  const options = {
+    hostname: 'generativelanguage.googleapis.com',
+    path: `/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': data.length
     }
+  };
 
-    const aiResponse = data.candidates[0].content.parts[0].text;
-    res.json({ success: true, message: aiResponse });
-
-  } catch (error) {
-    console.error("ERRO REAL:", error.message);
-    res.status(500).json({
-      success: false,
-      error: "O Google respondeu: " + error.message
+  const gReq = https.request(options, (gRes) => {
+    let responseData = '';
+    gRes.on('data', (chunk) => { responseData += chunk; });
+    gRes.on('end', () => {
+      try {
+        const json = JSON.parse(responseData);
+        if (json.error) {
+          res.status(500).json({ success: false, error: json.error.message });
+        } else {
+          const aiText = json.candidates[0].content.parts[0].text;
+          res.json({ success: true, message: aiText });
+        }
+      } catch (e) {
+        res.status(500).json({ success: false, error: "Erro ao ler resposta do Google" });
+      }
     });
-  }
+  });
+
+  gReq.on('error', (e) => {
+    res.status(500).json({ success: false, error: e.message });
+  });
+
+  gReq.write(data);
+  gReq.end();
 });
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
