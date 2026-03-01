@@ -4,106 +4,82 @@ const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
-// Carrega configuração do passport
 require('./config/passport')(passport);
 
 const app = express();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Ajuste para o Render reconhecer o login seguro
 app.set('trust proxy', 1); 
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_secret_2026',
   resave: true,
   saveUninitialized: false,
-  cookie: { 
-    secure: true,
-    sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 
-  }
+  cookie: { secure: true, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ── Rotas de autenticação ───────────────────────────────────────
-app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
-
-app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => {
-    res.redirect('/chat.html');
-  }
-);
-
-// Logout
+// Rotas de Autenticação
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => res.redirect('/chat.html'));
 app.get('/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) return res.status(500).json({ error: 'Erro no logout' });
-    req.session.destroy(() => {
-      res.redirect('/');
-    });
-  });
+  req.logout((err) => { req.session.destroy(() => res.redirect('/')); });
 });
 
-// Informações do usuário logado
 app.get('/api/user', (req, res) => {
   if (req.isAuthenticated()) {
-    res.json({
-      success: true,
-      user: {
-        displayName: req.user.displayName
-      }
-    });
+    res.json({ success: true, user: { displayName: req.user.displayName } });
   } else {
     res.status(401).json({ success: false });
   }
 });
 
-// ── Rota do chat (Gemini) ───────────────────────────────────────
+// ── Rota do chat (CHAMADA DIRETA - SEM LOOPING) ──────────────────
 app.post('/api/chat', async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ success: false, error: "Faça login primeiro" });
-  }
+  if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Faça login primeiro" });
 
   const { message } = req.body;
-  if (!message) return res.status(400).json({ success: false, error: "Mensagem vazia" });
+  const apiKey = process.env.GEMINI_API_KEY;
 
   try {
-    // Modelo estável para usar com sua nova chave de API
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // Chamada direta para a API do Google (v1) para evitar o erro 404 da v1beta
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-    const result = await model.generateContent(message.trim());
-    const response = await result.response;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: message }] }]
+      })
+    });
 
-    res.json({ success: true, message: response.text() });
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
+
+    const aiResponse = data.candidates[0].content.parts[0].text;
+    res.json({ success: true, message: aiResponse });
+
   } catch (error) {
-    console.error("ERRO GEMINI:", error);
+    console.error("ERRO REAL:", error.message);
     res.status(500).json({
       success: false,
-      error: "Erro na IA: " + error.message
+      error: "O Google respondeu: " + error.message
     });
   }
 });
 
-// Página inicial
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// Inicia servidor
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`MANDROID ONLINE`);
-});
+app.listen(PORT, () => console.log(`MANDROID ONLINE`));
