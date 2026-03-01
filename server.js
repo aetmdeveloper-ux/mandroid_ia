@@ -4,95 +4,112 @@ const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
 const cors = require('cors');
-const https = require('https');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+// carrega configuração do passport
 require('./config/passport')(passport);
 
 const app = express();
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-app.use(cors());
+// Middlewares
+app.use(cors());                            // ← importante para fetch funcionar
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.set('trust proxy', 1); 
-
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_secret_2026',
-  resave: true,
+  resave: false,
   saveUninitialized: false,
-  cookie: { secure: true, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 }
+  cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Autenticação
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => res.redirect('/chat.html'));
+// ── Rotas de autenticação ───────────────────────────────────────
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/' }),
+  (req, res) => {
+    res.redirect('/chat.html');
+  }
+);
+
+// Logout
 app.get('/logout', (req, res) => {
-  req.logout((err) => { req.session.destroy(() => res.redirect('/')); });
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Erro ao fazer logout' });
+    }
+    req.session.destroy(() => {
+      res.redirect('/');
+    });
+  });
 });
 
+// Informações do usuário logado
 app.get('/api/user', (req, res) => {
   if (req.isAuthenticated()) {
-    res.json({ success: true, user: { displayName: req.user.displayName } });
+    res.json({
+      success: true,
+      user: {
+        id: req.user.id,
+        displayName: req.user.displayName,
+        email: req.user.emails?.[0]?.value,
+        photo: req.user.photos?.[0]?.value
+      }
+    });
   } else {
-    res.status(401).json({ success: false });
+    res.status(401).json({ success: false, error: "Não autorizado" });
   }
 });
 
-// ── ROTA DO CHAT: MUDANÇA PARA O MODELO "GEMINI-PRO" (VERSÃO 1) ──────────────────
+// ── Rota do chat (Gemini) ───────────────────────────────────────
 app.post('/api/chat', async (req, res) => {
-  if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Faça login primeiro" });
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ success: false, error: "Faça login primeiro" });
+  }
 
   const { message } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY;
-  
-  const data = JSON.stringify({
-    contents: [{ parts: [{ text: message }] }]
-  });
+  if (!message || typeof message !== 'string' || message.trim() === '') {
+    return res.status(400).json({ success: false, error: "Mensagem inválida" });
+  }
 
-  const options = {
-    hostname: 'generativelanguage.googleapis.com',
-    // Mudamos para gemini-pro na v1, que é o caminho mais seguro contra o erro 404
-    path: `/v1/models/gemini-pro:generateContent?key=${apiKey}`,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': data.length
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY não configurada no .env");
     }
-  };
 
-  const gReq = https.request(options, (gRes) => {
-    let responseData = '';
-    gRes.on('data', (chunk) => { responseData += chunk; });
-    gRes.on('end', () => {
-      try {
-        const json = JSON.parse(responseData);
-        if (json.error) {
-          res.status(500).json({ success: false, error: "Google diz: " + json.error.message });
-        } else if (json.candidates && json.candidates[0].content) {
-          const aiText = json.candidates[0].content.parts[0].text;
-          res.json({ success: true, message: aiText });
-        } else {
-          res.status(500).json({ success: false, error: "Resposta vazia do Google." });
-        }
-      } catch (e) {
-        res.status(500).json({ success: false, error: "Erro no processamento da IA." });
-      }
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const result = await model.generateContent(message.trim());
+    const response = await result.response;
+
+    res.json({ success: true, message: response.text() });
+  } catch (error) {
+    console.error("Erro Gemini:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message.includes("API_KEY") ? "Chave da API Gemini não configurada" : "Erro na IA"
     });
-  });
-
-  gReq.on('error', (e) => {
-    res.status(500).json({ success: false, error: e.message });
-  });
-
-  gReq.write(data);
-  gReq.end();
+  }
 });
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// Página inicial → login
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
+// Inicia servidor
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`MANDROID ONLINE`));
+app.listen(PORT, () => {
+  console.log(`MANDROID ONLINE → http://localhost:${PORT}`);
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn("⚠️  GEMINI_API_KEY não encontrada no .env");
+  }
+});
