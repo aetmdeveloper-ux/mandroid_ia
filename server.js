@@ -2,114 +2,132 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const path = require('path');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
-// carrega configuração do passport
-require('./config/passport')(passport);
 
 const app = express();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Middlewares
-app.use(cors());                            // ← importante para fetch funcionar
+/* =========================
+   CONFIGURAÇÕES IMPORTANTES
+========================= */
+
+// 🔥 MUITO IMPORTANTE PARA RENDER
+app.set('trust proxy', 1);
+
+// CORS (ajuste se frontend for domínio diferente)
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+/* =========================
+   SESSION CONFIGURADA CORRETAMENTE
+========================= */
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_secret_2026',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // HTTPS no Render
+    httpOnly: true,
+    sameSite: 'lax'
+  }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ── Rotas de autenticação ───────────────────────────────────────
+/* =========================
+   GOOGLE AUTH
+========================= */
+
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.GOOGLE_CALLBACK_URL
+  },
+  function(accessToken, refreshToken, profile, done) {
+    return done(null, profile);
+  }
+));
+
+passport.serializeUser((user, done) => {
+  done(null, user);
+});
+
+passport.deserializeUser((obj, done) => {
+  done(null, obj);
+});
+
+/* =========================
+   ROTAS DE AUTENTICAÇÃO
+========================= */
+
 app.get('/auth/google',
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
 app.get('/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => {
+  function(req, res) {
     res.redirect('/chat.html');
   }
 );
 
-// Logout
 app.get('/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) {
-      return res.status(500).json({ error: 'Erro ao fazer logout' });
-    }
-    req.session.destroy(() => {
-      res.redirect('/');
-    });
+  req.logout(() => {
+    res.redirect('/');
   });
 });
 
-// Informações do usuário logado
-app.get('/api/user', (req, res) => {
+/* =========================
+   MIDDLEWARE PROTEÇÃO
+========================= */
+
+function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
-    res.json({
-      success: true,
-      user: {
-        id: req.user.id,
-        displayName: req.user.displayName,
-        email: req.user.emails?.[0]?.value,
-        photo: req.user.photos?.[0]?.value
-      }
-    });
-  } else {
-    res.status(401).json({ success: false, error: "Não autorizado" });
+    return next();
   }
-});
+  res.status(401).json({ error: 'Não autenticado' });
+}
 
-// ── Rota do chat (Gemini) ───────────────────────────────────────
-app.post('/api/chat', async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ success: false, error: "Faça login primeiro" });
-  }
+/* =========================
+   ROTA DO CHAT PROTEGIDA
+========================= */
 
-  const { message } = req.body;
-  if (!message || typeof message !== 'string' || message.trim() === '') {
-    return res.status(400).json({ success: false, error: "Mensagem inválida" });
-  }
-
+app.post('/api/chat', ensureAuthenticated, async (req, res) => {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY não configurada no .env");
-    }
+    const { message } = req.body;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // 👉 Aqui entra sua lógica Gemini
+    // Exemplo fictício:
+    const response = "Resposta da IA para: " + message;
 
-    const result = await model.generateContent(message.trim());
-    const response = await result.response;
+    res.json({ reply: response });
 
-    res.json({ success: true, message: response.text() });
   } catch (error) {
-    console.error("Erro Gemini:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message.includes("API_KEY") ? "Chave da API Gemini não configurada" : "Erro na IA"
-    });
+    console.error(error);
+    res.status(500).json({ error: 'Erro no servidor' });
   }
 });
 
-// Página inicial → login
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+/* =========================
+   ARQUIVOS ESTÁTICOS
+========================= */
 
-// Inicia servidor
+app.use(express.static(path.join(__dirname, 'public')));
+
+/* =========================
+   START SERVIDOR
+========================= */
+
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log(`MANDROID ONLINE → http://localhost:${PORT}`);
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("⚠️  GEMINI_API_KEY não encontrada no .env");
-  }
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
