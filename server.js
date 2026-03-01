@@ -13,16 +13,23 @@ const app = express();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Middlewares
-app.use(cors());                            // ← importante para fetch funcionar
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// AJUSTE NA SESSÃO PARA FUNCIONAR NO RENDER
+app.set('trust proxy', 1); // Necessário para o Render entender que o HTTPS é seguro
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_secret_2026',
-  resave: false,
+  resave: true,                // Mantém a sessão ativa
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
+  cookie: { 
+    secure: true,              // Obrigatório para o Render (HTTPS)
+    sameSite: 'lax',           // Permite o "aperto de mão" com o Google
+    maxAge: 24 * 60 * 60 * 1000 // Mantém logado por 24 horas
+  }
 }));
 
 app.use(passport.initialize());
@@ -71,6 +78,7 @@ app.get('/api/user', (req, res) => {
 
 // ── Rota do chat (Gemini) ───────────────────────────────────────
 app.post('/api/chat', async (req, res) => {
+  // Verificação de segurança: se o usuário não está autenticado, o servidor barra
   if (!req.isAuthenticated()) {
     return res.status(401).json({ success: false, error: "Faça login primeiro" });
   }
@@ -109,7 +117,4 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`MANDROID ONLINE → http://localhost:${PORT}`);
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("⚠️  GEMINI_API_KEY não encontrada no .env");
-  }
 });
