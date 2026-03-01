@@ -18,7 +18,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// AJUSTE NA SESSÃO PARA FUNCIONAR NO RENDER
+// AJUSTE PARA O RENDER RECONHECER O LOGIN
 app.set('trust proxy', 1); 
 
 app.use(session({
@@ -92,8 +92,8 @@ app.post('/api/chat', async (req, res) => {
       throw new Error("GEMINI_API_KEY não configurada");
     }
 
-    // ALTERAÇÃO AQUI: USANDO O MODELO LATEST PARA EVITAR ERROS DE VERSÃO
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    // Usando o modelo padrão estável para evitar erros de versão
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const result = await model.generateContent(message.trim());
     const response = await result.response;
