@@ -19,16 +19,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // AJUSTE NA SESSÃO PARA FUNCIONAR NO RENDER
-app.set('trust proxy', 1); // Necessário para o Render entender que o HTTPS é seguro
+app.set('trust proxy', 1); 
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_secret_2026',
-  resave: true,                // Mantém a sessão ativa
+  resave: true,
   saveUninitialized: false,
   cookie: { 
-    secure: true,              // Obrigatório para o Render (HTTPS)
-    sameSite: 'lax',           // Permite o "aperto de mão" com o Google
-    maxAge: 24 * 60 * 60 * 1000 // Mantém logado por 24 horas
+    secure: true,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000 
   }
 }));
 
@@ -78,7 +78,6 @@ app.get('/api/user', (req, res) => {
 
 // ── Rota do chat (Gemini) ───────────────────────────────────────
 app.post('/api/chat', async (req, res) => {
-  // Verificação de segurança: se o usuário não está autenticado, o servidor barra
   if (!req.isAuthenticated()) {
     return res.status(401).json({ success: false, error: "Faça login primeiro" });
   }
@@ -90,10 +89,11 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     if (!process.env.GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY não configurada no .env");
+      throw new Error("GEMINI_API_KEY não configurada");
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // ALTERAÇÃO AQUI: USANDO O MODELO LATEST PARA EVITAR ERROS DE VERSÃO
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
     const result = await model.generateContent(message.trim());
     const response = await result.response;
@@ -103,12 +103,12 @@ app.post('/api/chat', async (req, res) => {
     console.error("Erro Gemini:", error);
     res.status(500).json({
       success: false,
-      error: error.message.includes("API_KEY") ? "Chave da API Gemini não configurada" : "Erro na IA"
+      error: "Erro na IA: " + error.message
     });
   }
 });
 
-// Página inicial → login
+// Página inicial
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
