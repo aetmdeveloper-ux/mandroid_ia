@@ -11,7 +11,7 @@ require('./config/passport')(passport);
 
 const app = express();
 
-// Middlewares para o seu Frontend funcionar
+// Middlewares para o seu Frontend futurista funcionar
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -57,7 +57,7 @@ app.get('/api/user', (req, res) => {
   }
 });
 
-// ── ROTA DO CHAT (MOTOR HUGGING FACE - SEM ERRO 404) ─────────────
+// ── ROTA DO CHAT (VERSÃO MISTRAL - RESPOSTAS VARIADAS) ─────────────
 app.post('/api/chat', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Logue primeiro" });
 
@@ -66,15 +66,19 @@ app.post('/api/chat', async (req, res) => {
 
   if (!token) return res.status(500).json({ success: false, error: "Chave HF_TOKEN não configurada no Render." });
 
-  // Modelo Qwen 2.5: rápido e entende português perfeitamente
+  // Formato de Prompt para o Mistral (Garante que ele responda ao que você perguntou)
   const data = JSON.stringify({ 
-    inputs: `<|im_start|>system\nVocê é o MANDROID.IA, um assistente futurista e prestativo criado pelo Adão.<|im_end|>\n<|im_start|>user\n${message}<|im_end|>\n<|im_start|>assistant\n`,
-    parameters: { max_new_tokens: 500, return_full_text: false }
+    inputs: `<s>[INST] Você é o MANDROID.IA, um assistente prestativo. Responda em português de forma clara: ${message} [/INST]`,
+    parameters: { 
+      max_new_tokens: 500, 
+      return_full_text: false,
+      temperature: 0.7 // Dá mais "liberdade" para ele não repetir sempre a mesma coisa
+    }
   });
 
   const options = {
     hostname: 'api-inference.huggingface.co',
-    path: '/models/Qwen/Qwen2.5-72B-Instruct',
+    path: '/models/mistralai/Mistral-7B-Instruct-v0.3',
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -90,14 +94,24 @@ app.post('/api/chat', async (req, res) => {
       try {
         const json = JSON.parse(responseBody);
         
-        // Se o motor estiver carregando (comum na primeira vez do dia)
-        if (json.estimated_time) {
-          return res.json({ success: true, message: "MANDROID: Sistema despertando... Tente novamente em 20 segundos." });
+        // Se o motor estiver carregando
+        if (json.estimated_time || json.error?.includes("currently loading")) {
+          return res.json({ success: true, message: "MANDROID: Sistema despertando... Tente em 15 segundos." });
         }
 
-        const aiText = json[0]?.generated_text || "MANDROID: Sistema pronto. Pode falar.";
-        res.json({ success: true, message: aiText });
+        // Pega o texto gerado da estrutura do Hugging Face
+        let aiText = "";
+        if (Array.isArray(json) && json[0]?.generated_text) {
+          aiText = json[0].generated_text;
+        } else if (json.generated_text) {
+          aiText = json.generated_text;
+        } else {
+          aiText = "MANDROID: Recebi sua mensagem, mas estou processando. Pode repetir?";
+        }
+
+        res.json({ success: true, message: aiText.trim() });
       } catch (e) {
+        console.error("Erro no Parse:", responseBody);
         res.status(500).json({ success: false, error: "Erro no processamento da IA." });
       }
     });
@@ -111,4 +125,4 @@ app.post('/api/chat', async (req, res) => {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`MANDROID ONLINE - PORTA ${PORT}`));
+app.listen(PORT, () => console.log(`MANDROID ONLINE - MOTOR MISTRAL PRONTO`));
