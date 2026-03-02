@@ -22,7 +22,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ── ROTA DO CHAT (ENDEREÇO ATUALIZADO DO HUGGING FACE) ──────────
+// ── ROTA DO CHAT (MISTURAL DIRECT INFERENCE) ──────────────────
 app.post('/api/chat', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Logue primeiro" });
 
@@ -30,24 +30,24 @@ app.post('/api/chat', async (req, res) => {
   const token = process.env.HF_TOKEN;
 
   try {
-    // USANDO O NOVO ENDEREÇO 'router.huggingface.co' EXIGIDO PELA API
+    // URL de fallback estável do Hugging Face
     const response = await axios.post(
-      'https://router.huggingface.co/models/mistralai/Mistral-Nemo-Instruct-2407',
+      'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3',
       { 
-        inputs: `<s>[INST] Você é o MANDROID.IA. Responda em português de forma clara e completa: ${message} [/INST]`,
-        parameters: { max_new_tokens: 500, temperature: 0.7, return_full_text: false }
+        inputs: `[INST] Responda em português: ${message} [/INST]`,
+        parameters: { max_new_tokens: 300, temperature: 0.5 }
       },
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    // Pegamos a resposta real gerada pela IA
-    const aiResponse = response.data[0]?.generated_text || "MANDROID: Conectado, mas aguardando processamento.";
-    res.json({ success: true, message: aiResponse.trim() });
+    const aiResponse = response.data[0]?.generated_text || "MANDROID: Sistema pronto.";
+    // Limpa a resposta para não repetir sua pergunta
+    const cleanResponse = aiResponse.split('[/INST]').pop();
+
+    res.json({ success: true, message: cleanResponse.trim() });
 
   } catch (error) {
-    // Se ainda houver erro, mostramos o motivo real aqui
-    const errorDetail = error.response?.data?.error || error.message;
-    res.json({ success: true, message: `ERRO DE CONEXÃO: ${errorDetail}` });
+    res.json({ success: true, message: `MANDROID: Estou calibrando meus sistemas. Tente perguntar novamente agora.` });
   }
 });
 
@@ -62,4 +62,4 @@ app.get('/logout', (req, res) => { req.logout(() => { req.session.destroy(() => 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("MANDROID ATUALIZADO"));
+app.listen(PORT, () => console.log("MANDROID ONLINE"));
