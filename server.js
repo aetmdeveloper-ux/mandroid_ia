@@ -3,18 +3,13 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
-const cors = require('cors');
-const axios = require('axios'); // Mudamos para axios para ser mais robusto
+const axios = require('axios');
 
 require('./config/passport')(passport);
-
 const app = express();
 
-app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-
 app.set('trust proxy', 1); 
 
 app.use(session({
@@ -27,7 +22,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ── ROTA DO CHAT (VERSÃO TURBO COM GOOGLE GEMMA) ──────────────────
+// ── ROTA DO CHAT (SEM RESPOSTAS PROGRAMADAS) ──────────────────
 app.post('/api/chat', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Logue primeiro" });
 
@@ -35,31 +30,27 @@ app.post('/api/chat', async (req, res) => {
   const token = process.env.HF_TOKEN;
 
   try {
+    // Chamada direta para o modelo mais inteligente do Hugging Face
     const response = await axios.post(
-      'https://api-inference.huggingface.co/models/google/gemma-2-9b-it',
+      'https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1',
       { 
-        inputs: `<start_of_turn>user\nVocê é o MANDROID.IA. Responda em português de forma clara: ${message}<end_of_turn>\n<start_of_turn>model\n`,
-        parameters: { max_new_tokens: 500, temperature: 0.7 }
+        inputs: `<s>[INST] Você é o MANDROID.IA. Responda em português: ${message} [/INST]`,
+        parameters: { max_new_tokens: 500, temperature: 0.7, return_full_text: false }
       },
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    let aiText = "";
-    if (Array.isArray(response.data)) {
-        aiText = response.data[0].generated_text.split('model\n').pop();
-    } else {
-        aiText = response.data.generated_text;
-    }
-
-    res.json({ success: true, message: aiText.trim() });
+    // Se a IA responder, pegamos o texto puro dela
+    const aiResponse = response.data[0]?.generated_text || "Erro: A IA não gerou texto.";
+    res.json({ success: true, message: aiResponse.trim() });
 
   } catch (error) {
-    console.error("Erro no HF:", error.response?.data || error.message);
-    res.json({ success: true, message: "MANDROID: Estou reconectando meus sensores. Pode perguntar de novo em 10 segundos?" });
+    // Se der erro, mostramos o erro REAL da API para sabermos o que é
+    const errorMsg = error.response?.data?.error || error.message;
+    res.json({ success: true, message: `ERRO DA FONTE: ${errorMsg}` });
   }
 });
 
-// Rotas de Auth e User
 app.get('/api/user', (req, res) => {
   if (req.isAuthenticated()) res.json({ success: true, user: { displayName: req.user.displayName } });
   else res.status(401).json({ success: false });
@@ -67,8 +58,8 @@ app.get('/api/user', (req, res) => {
 
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => res.redirect('/chat.html'));
-app.get('/logout', (req, res) => { req.logout((err) => { req.session.destroy(() => res.redirect('/')); }); });
+app.get('/logout', (req, res) => { req.logout(() => { req.session.destroy(() => res.redirect('/')); }); });
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("MANDROID PRONTO"));
+app.listen(PORT, () => console.log("MANDROID CONECTADO À FONTE"));
