@@ -3,18 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MANDROID.IA — Assistente Futurista</title>
+  <title>MANDROID.IA — Chat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
   <style>
     :root {
-      --neon-green: #00ff41;
-      --neon-cyan: #00e5ff;
-      --dark-bg: #000a00;
-      --chat-bg: rgba(0,15,0,0.7);
+      --neon-green:  #00ff41;
+      --neon-cyan:   #00e5ff;
+      --neon-purple: #bf00ff;
+      --dark-bg:     #000a00;
+      --chat-bg:     rgba(0, 15, 0, 0.7);
     }
-    * { margin:0; padding:0; box-sizing:border-box; }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
       background: var(--dark-bg);
       color: var(--neon-green);
@@ -24,183 +27,518 @@
       flex-direction: column;
       overflow: hidden;
     }
+
+    /* ── Header ─────────────────────────────────── */
     header {
-      padding: 12px 20px;
-      background: rgba(0,0,0,0.6);
-      border-bottom: 1px solid var(--neon-green);
+      padding: 10px 20px;
+      background: rgba(0, 0, 0, 0.75);
+      border-bottom: 1px solid rgba(0, 255, 65, 0.4);
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
+      gap: 12px;
     }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
     h1 {
       font-family: 'Orbitron', monospace;
-      font-size: 1.8rem;
-      letter-spacing: 4px;
+      font-size: clamp(1rem, 3vw, 1.6rem);
+      letter-spacing: 3px;
       background: linear-gradient(90deg, var(--neon-green), var(--neon-cyan));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      white-space: nowrap;
     }
+
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 255, 65, 0.08);
+      border: 1px solid rgba(0, 255, 65, 0.3);
+      border-radius: 20px;
+      padding: 4px 12px 4px 4px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.78rem;
+      color: rgba(0, 255, 65, 0.8);
+      white-space: nowrap;
+    }
+
+    .user-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid var(--neon-green);
+      object-fit: cover;
+    }
+
+    .user-avatar-placeholder {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid var(--neon-green);
+      background: rgba(0, 255, 65, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      color: var(--neon-green);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
     .btn {
-      padding: 8px 16px;
+      padding: 7px 14px;
       border: 1px solid var(--neon-green);
       background: transparent;
       color: var(--neon-green);
       font-family: 'Share Tech Mono', monospace;
+      font-size: 0.78rem;
       cursor: pointer;
       transition: all 0.2s;
+      border-radius: 4px;
+      white-space: nowrap;
     }
-    .btn:hover { background: rgba(0,255,65,0.15); }
+    .btn:hover { background: rgba(0, 255, 65, 0.15); box-shadow: 0 0 8px rgba(0,255,65,0.3); }
     .btn-danger { border-color: #ff4444; color: #ff4444; }
-    .btn-danger:hover { background: rgba(255,68,68,0.15); }
+    .btn-danger:hover { background: rgba(255, 68, 68, 0.15); box-shadow: 0 0 8px rgba(255,68,68,0.3); }
 
+    /* ── Status Bar ──────────────────────────────── */
+    .status-bar {
+      padding: 4px 20px;
+      background: rgba(0, 0, 0, 0.5);
+      border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.7rem;
+      color: rgba(0, 229, 255, 0.5);
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--neon-green);
+      box-shadow: 0 0 6px var(--neon-green);
+      animation: pulse 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Chat Container ──────────────────────────── */
     #chat-container {
       flex: 1;
       overflow-y: auto;
       padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,255,65,0.3) transparent;
     }
+
+    #chat-container::-webkit-scrollbar { width: 4px; }
+    #chat-container::-webkit-scrollbar-track { background: transparent; }
+    #chat-container::-webkit-scrollbar-thumb { background: rgba(0,255,65,0.3); border-radius: 2px; }
+
     .message {
-      max-width: 80%;
+      max-width: 82%;
       padding: 12px 16px;
       border-radius: 12px;
-      line-height: 1.45;
+      line-height: 1.55;
+      font-size: 0.95rem;
+      animation: fadeIn 0.25s ease-out;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
-    .user {
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.user {
       align-self: flex-end;
-      background: rgba(0,255,65,0.12);
-      border: 1px solid rgba(0,255,65,0.4);
+      background: rgba(0, 255, 65, 0.1);
+      border: 1px solid rgba(0, 255, 65, 0.35);
+      color: #e0ffe0;
     }
-    .ai {
+
+    .message.ai {
       align-self: flex-start;
-      background: rgba(0,229,255,0.08);
-      border: 1px solid rgba(0,229,255,0.3);
+      background: rgba(0, 229, 255, 0.07);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      color: #e0f8ff;
     }
-    #typing {
+
+    .message.error {
       align-self: flex-start;
-      color: var(--neon-cyan);
-      font-style: italic;
-      opacity: 0.7;
+      background: rgba(255, 68, 68, 0.08);
+      border: 1px solid rgba(255, 68, 68, 0.3);
+      color: #ffb3b3;
+    }
+
+    .message-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.68rem;
+      opacity: 0.6;
+      margin-bottom: 5px;
+      letter-spacing: 1px;
+    }
+
+    .message.user .message-label { color: var(--neon-green); }
+    .message.ai .message-label   { color: var(--neon-cyan); }
+    .message.error .message-label { color: #ff6b6b; }
+
+    /* ── Typing Indicator ────────────────────────── */
+    #typing-indicator {
+      align-self: flex-start;
+      background: rgba(0, 229, 255, 0.07);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-radius: 12px;
+      padding: 10px 16px;
       display: none;
+      align-items: center;
+      gap: 10px;
+      animation: fadeIn 0.25s ease-out;
     }
-    #input-area {
-      padding: 16px;
-      background: rgba(0,0,0,0.6);
-      border-top: 1px solid var(--neon-green);
+
+    #typing-indicator.visible { display: flex; }
+
+    .typing-dots {
       display: flex;
-      gap: 12px;
+      gap: 5px;
     }
+
+    .typing-dots span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--neon-cyan);
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30%            { transform: translateY(-6px); opacity: 1; }
+    }
+
+    .typing-text {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--neon-cyan);
+      opacity: 0.7;
+    }
+
+    /* ── Input Area ──────────────────────────────── */
+    #input-area {
+      padding: 14px 20px;
+      background: rgba(0, 0, 0, 0.7);
+      border-top: 1px solid rgba(0, 255, 65, 0.3);
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
     #user-input {
       flex: 1;
-      padding: 12px;
-      background: rgba(0,255,65,0.05);
-      border: 1px solid var(--neon-green);
-      color: white;
+      padding: 12px 16px;
+      background: rgba(0, 255, 65, 0.04);
+      border: 1px solid rgba(0, 255, 65, 0.4);
+      border-radius: 8px;
+      color: #e0ffe0;
       font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      resize: none;
+      min-height: 46px;
+      max-height: 120px;
     }
+
+    #user-input:focus {
+      border-color: var(--neon-green);
+      box-shadow: 0 0 12px rgba(0, 255, 65, 0.2);
+    }
+
+    #user-input::placeholder { color: rgba(0, 255, 65, 0.3); }
+
     #send-btn {
-      padding: 0 24px;
+      padding: 12px 22px;
       background: var(--neon-green);
-      color: black;
+      color: #000a00;
       border: none;
-      font-weight: bold;
+      border-radius: 8px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.2s;
+      align-self: flex-end;
+      flex-shrink: 0;
+    }
+
+    #send-btn:hover:not(:disabled) {
+      background: #00cc34;
+      box-shadow: 0 0 16px rgba(0, 255, 65, 0.5);
+      transform: translateY(-1px);
+    }
+
+    #send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
     }
   </style>
 </head>
 <body>
 
+<!-- Header -->
 <header>
-  <h1>MANDROID.IA</h1>
-  <div>
-    <button class="btn" id="btn-clear">Limpar Chat</button>
-    <button class="btn btn-danger" id="btn-logout">Sair</button>
+  <div class="header-left">
+    <h1 id="page-title">MANDROID.IA</h1>
+    <div class="user-badge" id="user-badge" style="display:none;">
+      <div class="user-avatar-placeholder" id="user-avatar-placeholder">?</div>
+      <img class="user-avatar" id="user-avatar" style="display:none;" alt="avatar"/>
+      <span id="user-name">Usuário</span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="btn" id="btn-clear" title="Limpar conversa">🗑 Limpar</button>
+    <button class="btn btn-danger" id="btn-logout" title="Sair do sistema">⏻ Sair</button>
   </div>
 </header>
 
-<div id="chat-container">
-  <div class="message ai">Bem-vindo ao MANDROID.IA. Estou pronto para ajudar.</div>
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-dot"></div>
+  <span>SISTEMA ONLINE</span>
+  <span>◈</span>
+  <span id="model-status">HuggingFace Inference API</span>
+  <span>◈</span>
+  <span id="msg-count">0 mensagens</span>
 </div>
 
+<!-- Chat Messages -->
+<div id="chat-container">
+  <div class="message ai">
+    <div class="message-label">◈ MANDROID.IA</div>
+    Olá! Sou o MANDROID.IA, seu assistente de inteligência artificial futurista. Estou pronto para responder suas perguntas com precisão. Como posso ajudá-lo hoje?
+  </div>
+</div>
+
+<!-- Typing Indicator (inside flex flow) -->
+<div id="typing-indicator">
+  <div class="typing-dots">
+    <span></span><span></span><span></span>
+  </div>
+  <div class="typing-text">MANDROID está processando...</div>
+</div>
+
+<!-- Input Area -->
 <div id="input-area">
-  <input type="text" id="user-input" placeholder="Digite sua mensagem..." autocomplete="off"/>
+  <textarea id="user-input" placeholder="Digite sua mensagem... (Enter para enviar, Shift+Enter para nova linha)" rows="1"></textarea>
   <button id="send-btn">ENVIAR</button>
 </div>
 
-<div id="typing">MANDROID está pensando...</div>
-
 <script>
-const chatContainer = document.getElementById('chat-container');
-const inputEl = document.getElementById('user-input');
-const sendBtn = document.getElementById('send-btn');
-const typingEl = document.getElementById('typing');
-const btnClear = document.getElementById('btn-clear');
-const btnLogout = document.getElementById('btn-logout');
+// ── Elementos DOM ──────────────────────────────────────────
+const chatEl     = document.getElementById('chat-container');
+const inputEl    = document.getElementById('user-input');
+const sendBtn    = document.getElementById('send-btn');
+const typingEl   = document.getElementById('typing-indicator');
+const btnClear   = document.getElementById('btn-clear');
+const btnLogout  = document.getElementById('btn-logout');
+const msgCountEl = document.getElementById('msg-count');
+
+let messageCount = 0;
+
+// ── Helpers ────────────────────────────────────────────────
+function scrollBottom() {
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function updateMsgCount() {
+  msgCountEl.textContent = `${messageCount} mensagem${messageCount !== 1 ? 's' : ''}`;
+}
 
 function appendMessage(role, text) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
-  div.textContent = text;
-  chatContainer.appendChild(div);
-  chatContainer.scrollTop = chatContainer.scrollHeight;
+
+  const label = document.createElement('div');
+  label.className = 'message-label';
+
+  if (role === 'user')  label.textContent = '◈ VOCÊ';
+  if (role === 'ai')    label.textContent = '◈ MANDROID.IA';
+  if (role === 'error') label.textContent = '◈ ERRO DO SISTEMA';
+
+  const content = document.createElement('div');
+  content.textContent = text;
+
+  div.appendChild(label);
+  div.appendChild(content);
+
+  chatEl.appendChild(div);
+  scrollBottom();
+
+  if (role !== 'error') messageCount++;
+  updateMsgCount();
 }
 
-function showTyping() { typingEl.style.display = 'block'; }
-function hideTyping() { typingEl.style.display = 'none'; }
+function setLoading(loading) {
+  sendBtn.disabled = loading;
+  inputEl.disabled = loading;
+  if (loading) {
+    typingEl.classList.add('visible');
+    scrollBottom();
+  } else {
+    typingEl.classList.remove('visible');
+  }
+}
 
+// ── Auto-resize do textarea ────────────────────────────────
+inputEl.addEventListener('input', function () {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+// ── Enviar mensagem ────────────────────────────────────────
 async function sendMessage() {
   const msg = inputEl.value.trim();
-  if (!msg) return;
+  if (!msg || sendBtn.disabled) return;
 
   appendMessage('user', msg);
   inputEl.value = '';
-  showTyping();
+  inputEl.style.height = 'auto';
+  setLoading(true);
 
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg })
+      body: JSON.stringify({ message: msg }),
+      credentials: 'include'
     });
 
     const data = await res.json();
-    hideTyping();
+    setLoading(false);
 
-    if (data.success) {
+    if (res.status === 401) {
+      appendMessage('error', '⚠️ Sessão expirada. Redirecionando para login...');
+      setTimeout(() => { window.location.href = '/'; }, 2000);
+      return;
+    }
+
+    if (data.success && data.message) {
       appendMessage('ai', data.message);
     } else {
-      appendMessage('ai', "⚠ Erro: " + (data.error || "Falha desconhecida"));
+      appendMessage('error', data.error || '⚠️ Erro desconhecido ao processar resposta.');
     }
   } catch (err) {
-    hideTyping();
-    appendMessage('ai', "⚠ Falha de conexão com o servidor.");
+    setLoading(false);
+    console.error('Erro de rede:', err);
+    appendMessage('error', '⚠️ Falha de conexão com o servidor. Verifique sua internet e tente novamente.');
   }
+
+  inputEl.focus();
 }
 
-// Eventos
+// ── Eventos de envio ───────────────────────────────────────
 sendBtn.addEventListener('click', sendMessage);
-inputEl.addEventListener('keypress', e => {
-  if (e.key === 'Enter') sendMessage();
+
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
 });
 
-btnClear.addEventListener('click', () => {
-  if (!confirm("Limpar toda a conversa?")) return;
-  chatContainer.innerHTML = '<div class="message ai">Conversa limpa. Como posso ajudar agora?</div>';
+// ── Limpar conversa ────────────────────────────────────────
+btnClear.addEventListener('click', async () => {
+  if (!confirm('Deseja limpar toda a conversa? O histórico de contexto da IA também será resetado.')) return;
+
+  // Limpa histórico no servidor
+  try {
+    await fetch('/api/clear-history', {
+      method: 'POST',
+      credentials: 'include'
+    });
+  } catch (e) {
+    console.warn('Não foi possível limpar histórico do servidor:', e);
+  }
+
+  // Limpa interface
+  chatEl.innerHTML = '';
+  messageCount = 0;
+  updateMsgCount();
+
+  appendMessage('ai', 'Conversa reiniciada. Histórico limpo. Como posso ajudar?');
 });
 
-btnLogout.addEventListener('click', async () => {
-  if (!confirm("Deseja realmente sair?")) return;
+// ── Logout ─────────────────────────────────────────────────
+btnLogout.addEventListener('click', () => {
+  if (!confirm('Deseja realmente sair do MANDROID.IA?')) return;
   window.location.href = '/logout';
 });
 
-// Opcional: carregar nome do usuário
-fetch('/api/user')
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      document.querySelector('h1').textContent = `MANDROID.IA — ${data.user.displayName.split(' ')[0]}`;
+// ── Carrega informações do usuário ─────────────────────────
+async function loadUserInfo() {
+  try {
+    const res = await fetch('/api/user', { credentials: 'include' });
+    if (!res.ok) {
+      window.location.href = '/';
+      return;
     }
-  });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('user-badge').style.display = 'flex';
+      document.getElementById('user-name').textContent = data.user.displayName.split(' ')[0];
+
+      if (data.user.photo) {
+        const avatar = document.getElementById('user-avatar');
+        const placeholder = document.getElementById('user-avatar-placeholder');
+        avatar.src = data.user.photo;
+        avatar.style.display = 'block';
+        placeholder.style.display = 'none';
+        avatar.onerror = () => {
+          avatar.style.display = 'none';
+          placeholder.style.display = 'flex';
+          placeholder.textContent = data.user.displayName[0].toUpperCase();
+        };
+      } else {
+        const placeholder = document.getElementById('user-avatar-placeholder');
+        placeholder.textContent = data.user.displayName[0].toUpperCase();
+      }
+    }
+  } catch (e) {
+    console.warn('Não foi possível carregar usuário:', e);
+  }
+}
+
+loadUserInfo();
+inputEl.focus();
 </script>
 </body>
 </html>
