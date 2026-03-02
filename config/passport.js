@@ -11,8 +11,8 @@ module.exports = function(passport) {
 
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.CALLBACK_URL || process.env.GOOGLE_CALLBACK_URL || 'https://mandroid.onrender.com/auth/google/callback',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,'http://localhost:3000/auth/google/callback'
+    callbackURL: process.env.CALLBACK_URL || process.env.GOOGLE_CALLBACK_URL || '',
     proxy: true
   },
   (accessToken, refreshToken, profile, done) => {
