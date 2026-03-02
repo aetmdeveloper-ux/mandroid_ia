@@ -6,10 +6,12 @@ const path = require('path');
 const cors = require('cors');
 const https = require('https');
 
+// Configuração do passport (Google Login)
 require('./config/passport')(passport);
 
 const app = express();
 
+// Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -21,12 +23,17 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'mandroid_2026',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: true, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 }
+  cookie: { 
+    secure: true, 
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000 
+  }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Rota de Usuário
 app.get('/api/user', (req, res) => {
   if (req.isAuthenticated()) {
     res.json({ success: true, user: { displayName: req.user.displayName } });
@@ -35,18 +42,23 @@ app.get('/api/user', (req, res) => {
   }
 });
 
-// ── ROTA DO CHAT (VERSÃO MISTRAL - CORRIGIDA) ──────────────────
+// ── ROTA DO CHAT (VERSÃO TURBO - RESPOSTAS COMPLETAS) ─────────────
 app.post('/api/chat', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Logue primeiro" });
 
   const { message } = req.body;
   const token = process.env.HF_TOKEN;
 
-  if (!token) return res.status(500).json({ success: false, error: "HF_TOKEN ausente." });
+  if (!token) return res.status(500).json({ success: false, error: "HF_TOKEN ausente no Render." });
 
+  // Prompt ajustado para o Mistral responder com inteligência
   const promptData = JSON.stringify({ 
-    inputs: `<s>[INST] Você é o MANDROID.IA. Responda em português: ${message} [/INST]`,
-    parameters: { max_new_tokens: 250, temperature: 0.7, return_full_text: false }
+    inputs: `<s>[INST] Você é o MANDROID.IA. Responda em português de forma detalhada: ${message} [/INST]`,
+    parameters: { 
+      max_new_tokens: 400, // Aumentado para respostas mais longas
+      temperature: 0.7, 
+      return_full_text: false 
+    }
   });
 
   const options = {
@@ -55,8 +67,7 @@ app.post('/api/chat', async (req, res) => {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(promptData)
+      'Content-Type': 'application/json'
     }
   };
 
@@ -66,13 +77,24 @@ app.post('/api/chat', async (req, res) => {
     hfRes.on('end', () => {
       try {
         const json = JSON.parse(body);
+        
         if (json.estimated_time) {
-          return res.json({ success: true, message: "MANDROID: Sistema despertando... Tente em 15 segundos." });
+          return res.json({ success: true, message: "MANDROID: Sistema aquecendo o núcleo... Aguarde 15 segundos e pergunte novamente!" });
         }
-        let aiText = json[0]?.generated_text || "MANDROID: Estou online. Como posso ajudar?";
+
+        // Extração robusta para pegar a resposta real da IA
+        let aiText = "";
+        if (Array.isArray(json) && json[0]?.generated_text) {
+          aiText = json[0].generated_text;
+        } else if (json.generated_text) {
+          aiText = json.generated_text;
+        } else {
+          aiText = "MANDROID: Estou pronto para sua próxima pergunta.";
+        }
+
         res.json({ success: true, message: aiText.trim() });
       } catch (e) {
-        res.status(500).json({ success: false, error: "Erro na resposta da IA." });
+        res.status(500).json({ success: false, error: "Erro no núcleo de resposta." });
       }
     });
   });
@@ -82,12 +104,20 @@ app.post('/api/chat', async (req, res) => {
   hfReq.end();
 });
 
+// Rotas de Auth
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => res.redirect('/chat.html'));
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/' }), 
+  (req, res) => res.redirect('/chat.html')
+);
+
 app.get('/logout', (req, res) => {
-  req.logout((err) => { req.session.destroy(() => res.redirect('/')); });
+  req.logout((err) => {
+    req.session.destroy(() => res.redirect('/'));
+  });
 });
+
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("MANDROID ONLINE"));
+app.listen(PORT, () => console.log(`MANDROID OPERANTE NA PORTA ${PORT}`));
