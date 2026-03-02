@@ -4,7 +4,7 @@ const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
 const cors = require('cors');
-const https = require('https');
+const axios = require('axios'); // Mudamos para axios para ser mais robusto
 
 require('./config/passport')(passport);
 
@@ -27,85 +27,47 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.get('/api/user', (req, res) => {
-  if (req.isAuthenticated()) {
-    res.json({ success: true, user: { displayName: req.user.displayName } });
-  } else {
-    res.status(401).json({ success: false });
-  }
-});
-
-// ── ROTA DO CHAT (MISTRAL - AJUSTADA PARA RESPOSTAS REAIS) ─────────────
+// ── ROTA DO CHAT (VERSÃO TURBO COM GOOGLE GEMMA) ──────────────────
 app.post('/api/chat', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Logue primeiro" });
 
   const { message } = req.body;
   const token = process.env.HF_TOKEN;
 
-  if (!token) return res.status(500).json({ success: false, error: "HF_TOKEN ausente." });
+  try {
+    const response = await axios.post(
+      'https://api-inference.huggingface.co/models/google/gemma-2-9b-it',
+      { 
+        inputs: `<start_of_turn>user\nVocê é o MANDROID.IA. Responda em português de forma clara: ${message}<end_of_turn>\n<start_of_turn>model\n`,
+        parameters: { max_new_tokens: 500, temperature: 0.7 }
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-  // O segredo está neste formato de inputs para o motor não se perder
-  const promptData = JSON.stringify({ 
-    inputs: `Instrução: Responda em português como o assistente MANDROID.IA.\nPergunta: ${message}\nResposta:`,
-    parameters: { 
-      max_new_tokens: 300, 
-      temperature: 0.7, 
-      top_p: 0.9,
-      return_full_text: false 
+    let aiText = "";
+    if (Array.isArray(response.data)) {
+        aiText = response.data[0].generated_text.split('model\n').pop();
+    } else {
+        aiText = response.data.generated_text;
     }
-  });
 
-  const options = {
-    hostname: 'api-inference.huggingface.co',
-    path: '/models/mistralai/Mistral-7B-Instruct-v0.3',
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  };
+    res.json({ success: true, message: aiText.trim() });
 
-  const hfReq = https.request(options, (hfRes) => {
-    let body = '';
-    hfRes.on('data', (chunk) => { body += chunk; });
-    hfRes.on('end', () => {
-      try {
-        const json = JSON.parse(body);
-        
-        if (json.estimated_time) {
-          return res.json({ success: true, message: "MANDROID: Sistema aquecendo... Tente em 10 segundos!" });
-        }
+  } catch (error) {
+    console.error("Erro no HF:", error.response?.data || error.message);
+    res.json({ success: true, message: "MANDROID: Estou reconectando meus sensores. Pode perguntar de novo em 10 segundos?" });
+  }
+});
 
-        // Garante que pegamos o texto gerado da forma correta
-        let aiText = "";
-        if (Array.isArray(json) && json[0]?.generated_text) {
-          aiText = json[0].generated_text;
-        } else if (json.generated_text) {
-          aiText = json.generated_text;
-        }
-
-        if (!aiText || aiText.trim().length < 2) {
-            aiText = "MANDROID: Estou processando sua pergunta. Pode repetir de outra forma?";
-        }
-
-        res.json({ success: true, message: aiText.trim() });
-      } catch (e) {
-        res.status(500).json({ success: false, error: "Erro na resposta da IA." });
-      }
-    });
-  });
-
-  hfReq.on('error', (err) => res.status(500).json({ success: false, error: err.message }));
-  hfReq.write(promptData);
-  hfReq.end();
+// Rotas de Auth e User
+app.get('/api/user', (req, res) => {
+  if (req.isAuthenticated()) res.json({ success: true, user: { displayName: req.user.displayName } });
+  else res.status(401).json({ success: false });
 });
 
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => res.redirect('/chat.html'));
-app.get('/logout', (req, res) => {
-  req.logout((err) => { req.session.destroy(() => res.redirect('/')); });
-});
-
+app.get('/logout', (req, res) => { req.logout((err) => { req.session.destroy(() => res.redirect('/')); }); });
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
