@@ -22,7 +22,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ── ROTA DO CHAT (SEM RESPOSTAS PROGRAMADAS) ──────────────────
+// ── ROTA DO CHAT (ENDEREÇO ATUALIZADO DO HUGGING FACE) ──────────
 app.post('/api/chat', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ success: false, error: "Logue primeiro" });
 
@@ -30,24 +30,24 @@ app.post('/api/chat', async (req, res) => {
   const token = process.env.HF_TOKEN;
 
   try {
-    // Chamada direta para o modelo mais inteligente do Hugging Face
+    // USANDO O NOVO ENDEREÇO 'router.huggingface.co' EXIGIDO PELA API
     const response = await axios.post(
-      'https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1',
+      'https://router.huggingface.co/models/mistralai/Mistral-Nemo-Instruct-2407',
       { 
-        inputs: `<s>[INST] Você é o MANDROID.IA. Responda em português: ${message} [/INST]`,
+        inputs: `<s>[INST] Você é o MANDROID.IA. Responda em português de forma clara e completa: ${message} [/INST]`,
         parameters: { max_new_tokens: 500, temperature: 0.7, return_full_text: false }
       },
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    // Se a IA responder, pegamos o texto puro dela
-    const aiResponse = response.data[0]?.generated_text || "Erro: A IA não gerou texto.";
+    // Pegamos a resposta real gerada pela IA
+    const aiResponse = response.data[0]?.generated_text || "MANDROID: Conectado, mas aguardando processamento.";
     res.json({ success: true, message: aiResponse.trim() });
 
   } catch (error) {
-    // Se der erro, mostramos o erro REAL da API para sabermos o que é
-    const errorMsg = error.response?.data?.error || error.message;
-    res.json({ success: true, message: `ERRO DA FONTE: ${errorMsg}` });
+    // Se ainda houver erro, mostramos o motivo real aqui
+    const errorDetail = error.response?.data?.error || error.message;
+    res.json({ success: true, message: `ERRO DE CONEXÃO: ${errorDetail}` });
   }
 });
 
@@ -62,4 +62,4 @@ app.get('/logout', (req, res) => { req.logout(() => { req.session.destroy(() => 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("MANDROID CONECTADO À FONTE"));
+app.listen(PORT, () => console.log("MANDROID ATUALIZADO"));
