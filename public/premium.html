@@ -1,0 +1,64 @@
+premium.html (ADICIONAR INTEGRAÇÃO DE PAGAMENTO)
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+<script>
+// Integração Mercado Pago (exemplo)
+async function iniciarPagamento(plano) {
+  // Buscar configuração
+  const configDoc = await db.collection('configuracoes').doc('sistema').get();
+  const publicKey = configDoc.data().publicKey;
+  
+  const mp = new MercadoPago(publicKey);
+  
+  const user = firebase.auth().currentUser;
+  if(!user) {
+    alert('Faça login primeiro!');
+    window.location.href = 'login.html';
+    return;
+  }
+  
+  // Buscar dados do profissional
+  const profDoc = await db.collection('profissionais').doc(user.uid).get();
+  const prof = profDoc.data();
+  
+  // Criar preferência de pagamento
+  const preferencia = {
+    items: [{
+      title: `Plano Premium ${plano === 'anual' ? 'Anual' : 'Mensal'} - MandroidApp`,
+      quantity: 1,
+      unit_price: plano === 'anual' ? 249.00 : 29.00
+    }],
+    payer: {
+      email: user.email,
+      name: prof.nome
+    },
+    metadata: {
+      profissional_id: user.uid,
+      profissional_nome: prof.nome,
+      plano: plano
+    },
+    notification_url: `https://seu-dominio.com/api/webhook-pagamento`,
+    back_urls: {
+      success: `${window.location.origin}/cadastro.html?pagamento=sucesso`,
+      failure: `${window.location.origin}/premium.html?pagamento=falha`,
+      pending: `${window.location.origin}/cadastro.html?pagamento=pendente`
+    },
+    auto_return: 'approved'
+  };
+  
+  // Criar checkout
+  const checkout = mp.checkout({
+    preference: preferencia
+  });
+  
+  checkout.open();
+}
+
+// Atualizar botões para chamar função de pagamento
+document.querySelectorAll('.btn-pago, .btn-anual').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    const plano = this.classList.contains('btn-anual') ? 'anual' : 'mensal';
+    iniciarPagamento(plano);
+  });
+});
+</script>
